@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
+import { Spinner } from "@heroui/spinner";
+import { useMutation } from "@tanstack/react-query";
+import type { ChatMessage } from "@/context/project-context";
 import { useProject } from "@/context/project-context";
 
 type Option = {
@@ -16,7 +20,7 @@ const OCCASION_OPTIONS: Option[] = [
   { value: "anniversary", label: "Rocznica / Związek", icon: "💍" },
   { value: "christmas", label: "Święta", icon: "🎄" },
   { value: "roast", label: "Roast", icon: "😂" },
-  { value: "other", label: "Inna...", icon: "✨", variant: "ghost" },
+  { value: "other", label: "Inna okazja", icon: "✨", variant: "ghost" },
 ];
 
 const RELATION_OPTIONS: Option[] = [
@@ -51,6 +55,22 @@ interface OptionGroupProps {
   customInputPlaceholder?: string;
   customInputValue?: string;
   onCustomInputChange?: (value: string) => void;
+}
+
+interface SongStartPayload {
+  title: string;
+  genre: string;
+  mood: string;
+  tempo: string;
+  language: string;
+  perspective: string;
+  additional_notes: string;
+}
+
+interface SongStartResponse {
+  reply: string;
+  lyrics: string | null;
+  lyrics_changed: boolean;
 }
 
 const OptionGroup = ({
@@ -103,7 +123,8 @@ const OptionGroup = ({
 
 export default function Home() {
   const router = useRouter();
-  const { data, setStartData } = useProject();
+  const { data, setStartData, setChatHistory } = useProject();
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const occasion = data.start.occasion;
   const occasionCustomDetail = data.start.occasionCustomDetail ?? "";
@@ -120,6 +141,112 @@ export default function Home() {
   const setVibe = (v: string) => setStartData({ vibe: v });
   const setVibeCustomDetail = (v: string) => setStartData({ vibeCustomDetail: v || null });
   const setRecipientName = (v: string) => setStartData({ recipientName: v });
+
+  const createSongMutation = useMutation<SongStartResponse, Error, SongStartPayload>({
+    mutationFn: async (payload) => {
+      const response = await fetch("http://localhost:8080/songs/start", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        let message = "Nie udało się rozpocząć tworzenia utworu.";
+        try {
+          const errorData = await response.json();
+          if (typeof errorData?.message === "string") {
+            message = errorData.message;
+          }
+        } catch {
+          // ignore json parsing errors
+        }
+        throw new Error(message);
+      }
+
+      const responseBody: SongStartResponse = await response.json();
+      return responseBody;
+    },
+    onSuccess: (responseBody, variables) => {
+      setSubmissionError(null);
+      const summaryLines = [
+        "🎁 Rozpoczęto tworzenie utworu z następującymi parametrami:",
+        `• Title: ${variables.title}`,
+        `• Genre: ${variables.genre}`,
+        `• Mood: ${variables.mood}`,
+        `• Tempo: ${variables.tempo}`,
+        `• Perspective: ${variables.perspective}`,
+        `• Language: ${variables.language}`,
+        `• Notes: ${variables.additional_notes}`,
+      ];
+
+      const userMessage: ChatMessage = {
+        role: "user",
+        content: summaryLines.join("\n"),
+        timestamp: new Date(),
+      };
+
+      const assistantMessage: ChatMessage = {
+        role: "assistant",
+        content: responseBody.reply ?? "Mam gotową odpowiedź dotyczącą Twojego prezentu.",
+        timestamp: new Date(),
+      };
+
+      const conversation = [userMessage, assistantMessage];
+      setChatHistory(conversation);
+
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(
+            "gifttune:lastSongStart",
+            JSON.stringify({
+              payload: variables,
+              response: responseBody,
+              timestamp: new Date().toISOString(),
+            }),
+          );
+        } catch {
+          // ignore storage errors
+        }
+      }
+
+      router.push("/project/create?step=chat");
+    },
+    onError: (error: unknown) => {
+      setSubmissionError(error instanceof Error ? error.message : "Wystąpił nieznany błąd.");
+    },
+  });
+
+  const buildSongPayload = (): SongStartPayload => {
+    const normalizedOccasion = occasion === "other" ? occasionCustomDetail || occasion : occasion;
+    const normalizedRelation = relation === "custom" ? relationCustomDetail || relation : relation;
+    const normalizedVibe = vibe === "custom" ? vibeCustomDetail || vibe : vibe;
+
+    const notes: string[] = [];
+    if (recipientName) {
+      notes.push(`Recipient: ${recipientName}`);
+    }
+    if (occasion === "other" && occasionCustomDetail) {
+      notes.push(`Occasion detail: ${occasionCustomDetail}`);
+    }
+    if (relation === "custom" && relationCustomDetail) {
+      notes.push(`Relation detail: ${relationCustomDetail}`);
+    }
+    if (vibe === "custom" && vibeCustomDetail) {
+      notes.push(`Preferred vibe detail: ${vibeCustomDetail}`);
+    }
+
+    return {
+      title: "",
+      genre: normalizedVibe,
+      mood: normalizedOccasion,
+      tempo: "",
+      language: "en",
+      perspective: normalizedRelation,
+      additional_notes: "",
+    };
+  };
 
   return (
     <section className="relative min-h-[calc(100vh-6rem)] w-full px-4 py-12 md:px-8 md:py-4">
@@ -216,22 +343,17 @@ export default function Home() {
               <button
                 type="button"
                 className="neon-button w-full justify-center text-sm"
-                onClick={() => {
-                  const payload = {
-                    occasion,
-                    occasionCustomDetail: occasion === "other" ? occasionCustomDetail : null,
-                    relation,
-                    relationCustomDetail: relation === "custom" ? relationCustomDetail : null,
-                    recipientName,
-                    vibe,
-                    vibeCustomDetail: vibe === "custom" ? vibeCustomDetail : null,
-                  };
-                  console.log("GiftTune selections:", payload);
-                  router.push("/project/create?step=chat");
-                }}
+                disabled={createSongMutation.isPending}
+                onClick={() => createSongMutation.mutate(buildSongPayload())}
               >
-                Dalej
+                {createSongMutation.isPending ? "Wysyłanie..." : "Dalej"}
               </button>
+
+              {submissionError && (
+                <p className="text-sm text-red-300">
+                  {submissionError}
+                </p>
+              )}
             </div>
           </div>
 
@@ -243,6 +365,17 @@ export default function Home() {
           </div>
         </div>
       </div>
+      {createSongMutation.isPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 rounded-3xl border border-white/10 bg-white/10 px-8 py-10 text-white shadow-2xl">
+            <Spinner color="secondary" size="lg" />
+            <p className="text-sm uppercase tracking-[0.4em] text-white/70">Tworzymy zapytanie</p>
+            <p className="text-xs text-white/60 text-center">
+              Prosimy o chwilę cierpliwości. Przygotowujemy szczegóły Twojego utworu.
+            </p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
