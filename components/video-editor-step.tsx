@@ -164,19 +164,19 @@ export function VideoEditorStep({
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 card-content">
             <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Tytuł</p>
             <p className="mt-2 text-lg font-semibold text-white">
               {formData.title || "Brak tytułu"}
             </p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 lg:col-span-2">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 lg:col-span-2 card-content">
             <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Opis</p>
             <p className="mt-2 text-sm text-white/70 whitespace-pre-line">
               {formData.description || "Brak opisu – możesz dodać go na wcześniejszym etapie."}
             </p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 card-content">
             <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Chat</p>
             <p className="mt-2 text-2xl font-semibold text-white">{chatHistory.length}</p>
             <p className="text-xs text-white/60">wiadomości wymienione</p>

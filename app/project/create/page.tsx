@@ -11,12 +11,13 @@ import {
 import { Progress } from "@heroui/progress";
 import { Chip } from "@heroui/chip";
 import { ChatStep } from "@/components/chat-step";
+import { MusicGenerationStep } from "@/components/music-generation-step";
 import { VideoEditorStep } from "@/components/video-editor-step";
 import { useProject } from "@/context/project-context";
 
-type Step = "form" | "chat" | "video";
+type Step = "form" | "chat" | "music" | "video";
 
-const steps: Step[] = ["form", "chat", "video"];
+const steps: Step[] = ["form", "chat", "music", "video"];
 
 export default function CreateProjectPage() {
   const router = useRouter();
@@ -41,12 +42,19 @@ export default function CreateProjectPage() {
   const videoData = data.video;
 
   const stepLabels = {
-    form: "Project Details",
-    chat: "AI Chat",
-    video: "Video Editor",
+    form: "Podstawowe informacje",
+    chat: "GiftTune Chat",
+    music: "Generowanie muzyki",
+    video: "Tworzenie wideo",
   };
   const currentStepIndex = steps.indexOf(currentStep);
-  const progress = ((currentStepIndex + 1) / steps.length) * 100;
+  const stepProgressMap: Record<Step, number> = {
+    form: 15,
+    chat: 38,
+    music: 65,
+    video: 85,
+  };
+  const progress = stepProgressMap[currentStep];
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +64,10 @@ export default function CreateProjectPage() {
   };
 
   const handleChatComplete = () => {
+    setCurrentStep("music");
+  };
+
+  const handleMusicComplete = () => {
     setCurrentStep("video");
   };
 
@@ -110,8 +122,10 @@ export default function CreateProjectPage() {
         return;
       }
       setCurrentStep("form");
-    } else if (currentStep === "video") {
+    } else if (currentStep === "music") {
       setCurrentStep("chat");
+    } else if (currentStep === "video") {
+      setCurrentStep("music");
     } else {
       router.back();
     }
@@ -126,22 +140,22 @@ export default function CreateProjectPage() {
   return (
     <section
       ref={sectionRef}
-      className="relative min-h-[calc(100vh-6rem)] w-full px-4 pt-28 pb-12 md:px-8 md:pt-32 md:pb-16"
+      className="relative min-h-[calc(100vh-6rem)] w-full px-4 pt-4 pb-12 md:px-8 md:pt-8 md:pb-16"
     >
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-5xl xl:max-w-7xl">
         <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-[#0c0022]/85 via-[#050015]/92 to-[#080024]/90 p-6 sm:p-10 shadow-[0_45px_140px_rgba(90,9,146,0.55)]">
           <div className="absolute -top-32 -left-10 h-72 w-72 blurred-spot bg-[#ff4bd8]" />
           <div className="absolute -bottom-20 -right-10 h-64 w-64 blurred-spot bg-[#5a7bff]" />
 
           <div className="relative z-10 flex flex-col gap-8">
-            <div className="space-y-3">
-              <p className="text-[11px] uppercase tracking-[0.45em] text-white/60">
+            <div className="space-y-3 pt-18">
+              <p className="text-[11px] uppercase tracking-[0.45em] text-white/80 font-medium relative z-20">
                 GiftTune • Kreator projektu
               </p>
-              <h1 className="text-3xl sm:text-4xl font-semibold text-white">
-                Tworzymy prezent w trzech krokach
+              <h1 className="text-3xl sm:text-4xl font-semibold text-white relative z-20">
+                Tworzymy prezent w czterech krokach
               </h1>
-              <p className="text-white/70 max-w-3xl">
+              <p className="text-white/70 max-w-3xl relative z-20">
                 Wypełnij krótki brief, porozmawiaj z naszym AI i dopracuj wideo, aby podarować bliskiej osobie personalizowany utwór.
               </p>
             </div>
@@ -154,29 +168,37 @@ export default function CreateProjectPage() {
                   </span>
                   <span>Postęp projektu</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-4">
-                  {steps.map((step, index) => (
-                    <div key={step} className="flex items-center gap-2">
-                      <Chip
-                        color={index <= currentStepIndex ? "primary" : "default"}
-                        variant={index === currentStepIndex ? "solid" : "flat"}
-                        size="sm"
-                      >
-                        {index + 1}
-                      </Chip>
-                      <span className={`text-sm ${index === currentStepIndex ? "text-white font-semibold" : "text-white/60"}`}>
-                        {stepLabels[step]}
-                      </span>
-                      {index < steps.length - 1 && (
-                        <div className={`w-10 h-px ${index < currentStepIndex ? "bg-gradient-to-r from-pink-500 to-indigo-500" : "bg-white/20"}`} />
-                      )}
-                    </div>
-                  ))}
+                <div className="relative w-full">
+                  {/* Step names positioned at their percentages */}
+                  <div className="relative w-full mb-8 h-8">
+                    {steps.map((step, index) => {
+                      const stepPercentage = stepProgressMap[step];
+                      return (
+                        <div
+                          key={step}
+                          className="absolute flex flex-col items-center"
+                          style={{ left: `${stepPercentage}%`, transform: 'translateX(-50%)' }}
+                        >
+                          <Chip
+                            color={index <= currentStepIndex ? "primary" : "default"}
+                            variant={index === currentStepIndex ? "solid" : "flat"}
+                            size="md"
+                            className="mb-1"
+                          >
+                            {index + 1}
+                          </Chip>
+                          <span className={`text-md whitespace-nowrap ${index === currentStepIndex ? "text-white font-semibold" : "text-white/60"}`}>
+                            {stepLabels[step]}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <Progress value={progress} className="w-full" color="primary" />
                 </div>
-                <Progress value={progress} className="w-full" color="primary" />
               </div>
 
-              <div className="rounded-[30px] border border-white/10 bg-white/5 p-6 sm:p-8 space-y-6">
+              <div className="rounded-[30px] border border-white/10 bg-white/5 p-6 sm:p-8 space-y-6 card-content">
                 <div className="space-y-1">
                   <p className="text-xs uppercase tracking-[0.4em] text-white/55">
                     Etap {currentStepIndex + 1}
@@ -247,7 +269,7 @@ export default function CreateProjectPage() {
                         type="submit"
                         disabled={!formData.title.trim()}
                       >
-                        Dalej: AI Chat
+                        Dalej: GiftTune Chat
                       </Button>
                     </div>
                   </form>
@@ -259,6 +281,15 @@ export default function CreateProjectPage() {
                     chatHistory={chatHistory}
                     onChatUpdate={setChatHistory}
                     onComplete={handleChatComplete}
+                    onBack={handleBack}
+                  />
+                )}
+
+                {currentStep === "music" && (
+                  <MusicGenerationStep
+                    formData={formData}
+                    chatHistory={chatHistory}
+                    onComplete={handleMusicComplete}
                     onBack={handleBack}
                   />
                 )}

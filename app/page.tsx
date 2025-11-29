@@ -250,7 +250,7 @@ export default function Home() {
 
   return (
     <section className="relative min-h-[calc(100vh-6rem)] w-full px-4 py-12 md:px-8 md:py-4">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-4xl xl:max-w-6xl">
         <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-[#0c0022]/85 via-[#050015]/92 to-[#080024]/90 p-6 sm:p-10 shadow-[0_45px_140px_rgba(90,9,146,0.55)]">
           <div className="absolute -top-32 -left-10 h-72 w-72 blurred-spot bg-[#ff4bd8]" />
           <div className="absolute -bottom-20 -right-10 h-64 w-64 blurred-spot bg-[#5a7bff]" />

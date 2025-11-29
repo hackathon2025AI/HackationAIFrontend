@@ -57,6 +57,7 @@
       inset 0 0 20px rgba(255, 255, 255, 0.02);
     padding: 24px;
     backdrop-filter: blur(30px);
+    letter-spacing: 0.02em;
   }
 
   .neon-panel::after {
@@ -163,6 +164,10 @@
       rgba(255, 255, 255, 0.25),
       rgba(255, 255, 255, 0)
     );
+  }
+
+  .card-content {
+    letter-spacing: 0.02em;
   }
 }
 

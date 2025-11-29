@@ -285,7 +285,7 @@ export const MicrophoneRecorder = ({
   return (
     <div
       className={clsx(
-        "rounded-2xl border border-white/15 bg-white/5 px-4 py-5 backdrop-blur-xl shadow-[0_25px_75px_rgba(10,10,30,0.45)] sm:px-6 sm:py-7",
+        "rounded-2xl border border-white/15 bg-white/5 px-4 py-5 backdrop-blur-xl shadow-[0_25px_75px_rgba(10,10,30,0.45)] sm:px-6 sm:py-7 card-content",
         className,
       )}
     >

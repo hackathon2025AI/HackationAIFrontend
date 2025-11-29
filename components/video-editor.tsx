@@ -1073,7 +1073,7 @@ export function VideoEditor({
                 return (
                   <div
                     key={item.id}
-                    className="relative min-w-[220px] max-w-[220px] rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[0_25px_60px_rgba(3,0,20,0.45)]"
+                    className="relative min-w-[220px] max-w-[220px] rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[0_25px_60px_rgba(3,0,20,0.45)] card-content"
                   >
                     {item.type === "image" ? (
                       <img

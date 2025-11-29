@@ -108,7 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 key={item.id}
                 as={NextLink}
                 href={`/project/${item.id}`}
-                className="group flex flex-col gap-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-white/80 transition hover:border-white/25 hover:bg-white/10"
+                className="group flex flex-col gap-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-white/80 transition hover:border-white/25 hover:bg-white/10 card-content"
                 onPress={onClose}
               >
                 <p className="text-xs uppercase tracking-[0.35em] text-white/45">

@@ -150,7 +150,7 @@ export default function ProjectPage({
         <CardHeader>
           <h2 className="text-lg font-semibold">Description</h2>
         </CardHeader>
-        <CardBody>
+        <CardBody className="card-content">
           <p className="text-default-700 whitespace-pre-wrap">
             {project.description || "No description provided."}
           </p>
@@ -159,7 +159,7 @@ export default function ProjectPage({
 
       {(project.chatHistory || project.videoData) && (
         <Card>
-          <CardBody>
+          <CardBody className="card-content">
             <Tabs aria-label="Project details tabs" defaultSelectedKey="info">
               <Tab key="info" title="Information">
                 <div className="flex flex-col gap-3 py-4">
@@ -194,7 +194,7 @@ export default function ProjectPage({
                                 : "bg-default-200 dark:bg-default-300"
                             }`}
                           >
-                            <CardBody className="p-3">
+                            <CardBody className="p-3 card-content">
                               <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                               {message.timestamp && (
                                 <p className={`text-xs mt-1 opacity-70`}>
@@ -245,7 +245,7 @@ export default function ProjectPage({
           <CardHeader>
             <h2 className="text-lg font-semibold">Project Information</h2>
           </CardHeader>
-          <CardBody>
+          <CardBody className="card-content">
             <div className="flex flex-col gap-3">
               <div>
                 <span className="text-default-500 text-sm">Project ID:</span>
