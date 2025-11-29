@@ -6,17 +6,13 @@ import {
   NavbarMenu,
   NavbarMenuToggle,
   NavbarBrand,
-  NavbarItem,
   NavbarMenuItem,
 } from "@heroui/navbar";
 import { Button } from "@heroui/button";
 import { Link } from "@heroui/link";
-import { link as linkStyles } from "@heroui/theme";
 import NextLink from "next/link";
-import clsx from "clsx";
 
 import { siteConfig } from "@/config/site";
-import { ThemeSwitch } from "@/components/theme-switch";
 import { Logo, HistoryIcon } from "@/components/icons";
 
 interface NavbarProps {
@@ -30,7 +26,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
       position="static"
       className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#030012]/85 backdrop-blur-2xl shadow-[0_15px_45px_rgba(98,22,255,0.4)]"
     >
-      <NavbarContent className="basis-2/5 sm:basis-full" justify="start">
+      <NavbarContent className="w-full gap-6" justify="start">
         <NavbarBrand as="li" className="gap-3 max-w-fit">
           <NextLink className="flex items-center gap-3" href="/">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-2xl text-white shadow-[0_0_25px_rgba(255,75,216,0.4)]">
@@ -57,18 +53,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
             </NextLink>
           ))}
         </div>
-      </NavbarContent>
-
-      <NavbarContent className="basis-1 justify-end gap-4">
-        <NavbarItem className="hidden sm:flex">
-          <ThemeSwitch />
-        </NavbarItem>
-        <NavbarItem className="hidden md:flex">
-          <NextLink href="/project/create" className="neon-button px-6 py-3 text-xs uppercase tracking-[0.2em]">
+        <div className="ml-auto hidden md:block">
+          <NextLink
+            href="/project/create"
+            className="neon-button px-6 py-3 text-xs uppercase tracking-[0.2em]"
+          >
             Zacznij Tworzyć
           </NextLink>
-        </NavbarItem>
-        <NavbarItem className="sm:hidden gap-2">
+        </div>
+        <div className="ml-auto flex items-center gap-2 md:hidden">
           <Button
             isIconOnly
             variant="light"
@@ -78,9 +71,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
           >
             <HistoryIcon size={20} />
           </Button>
-          <ThemeSwitch />
-          <NavbarMenuToggle />
-        </NavbarItem>
+          <NavbarMenuToggle className="text-white" />
+        </div>
       </NavbarContent>
 
       <NavbarMenu className="backdrop-blur-2xl">
