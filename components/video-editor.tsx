@@ -7,32 +7,31 @@ import { Chip } from "@heroui/chip";
 import { ScrollShadow } from "@heroui/scroll-shadow";
 import { Select, SelectItem } from "@heroui/select";
 import clsx from "clsx";
+import type {
+  SerializedLibraryItem,
+  SerializedTimelineItem,
+  TransitionType,
+} from "@/context/project-context";
 
-interface LibraryItem {
-  id: string;
-  type: "image" | "video";
-  file: File;
-  url: string;
-  duration?: number; // For videos, this is the video's natural duration
+interface LibraryItem extends SerializedLibraryItem {
+  file?: File;
 }
 
-type TransitionType = "none" | "fade" | "slide" | "zoom" | "crossfade" | "wipe";
-
-interface TimelineItem {
-  id: string;
-  libraryItemId: string; // Reference to library item
-  duration: number; // Duration in seconds (for images, this is display duration)
-  startTime: number; // Start time in the timeline
-  transition?: TransitionType; // Transition effect to next item
-  transitionDuration?: number; // Transition duration in seconds (0.5-2s)
-}
+type TimelineItem = SerializedTimelineItem;
 
 interface VideoEditorProps {
   onExport?: (videoBlob: Blob) => void;
   onUpdate?: (timelineItems: TimelineItem[], libraryItems: LibraryItem[]) => void;
+  initialLibraryItems?: SerializedLibraryItem[];
+  initialTimelineItems?: SerializedTimelineItem[];
 }
 
-export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
+export function VideoEditor({
+  onExport,
+  onUpdate,
+  initialLibraryItems,
+  initialTimelineItems,
+}: VideoEditorProps) {
   const [mediaLibrary, setMediaLibrary] = useState<LibraryItem[]>([]);
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
   const [selectedTimelineItem, setSelectedTimelineItem] = useState<string | null>(null);
@@ -46,10 +45,12 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const libraryScrollRef = useRef<HTMLDivElement | null>(null);
   const isPlayingRef = useRef(false);
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const onUpdateRef = useRef<VideoEditorProps["onUpdate"]>();
   const mediaLibraryRef = useRef<LibraryItem[]>([]);
+  const hasHydratedRef = useRef(false);
 
   // Calculate total duration
   const totalDuration = timelineItems.reduce((acc, item) => {
@@ -68,6 +69,27 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
   const activeLibraryItem = activeTimelineItem ? getLibraryItem(activeTimelineItem.libraryItemId) : null;
   const isDetailsDisabled = !activeTimelineItem || !activeLibraryItem;
   const isImageClip = activeLibraryItem?.type === "image";
+
+  // Hydrate from initial data
+  useEffect(() => {
+    if (hasHydratedRef.current) return;
+
+    let didHydrate = false;
+
+    if (initialLibraryItems && initialLibraryItems.length > 0) {
+      setMediaLibrary(initialLibraryItems.map((item) => ({ ...item } as LibraryItem)));
+      didHydrate = true;
+    }
+
+    if (initialTimelineItems && initialTimelineItems.length > 0) {
+      setTimelineItems(initialTimelineItems);
+      didHydrate = true;
+    }
+
+    if (didHydrate) {
+      hasHydratedRef.current = true;
+    }
+  }, [initialLibraryItems, initialTimelineItems]);
 
   // Handle file upload to library
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,6 +116,7 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
         id,
         type: isVideo ? "video" : "image",
         file,
+        fileName: file.name,
         url,
       };
 
@@ -866,12 +889,62 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
     mediaLibraryRef.current = mediaLibrary;
   }, [mediaLibrary]);
 
-  // Cleanup URLs on unmount
+  // Improve horizontal scrolling experience in media library
   useEffect(() => {
-    return () => {
-      mediaLibraryRef.current.forEach((item) => URL.revokeObjectURL(item.url));
+    const container = libraryScrollRef.current;
+    if (!container) return;
+
+    let isPointerDown = false;
+    let startX = 0;
+    let scrollLeft = 0;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("button, input, textarea, a")) {
+        return;
+      }
+
+      isPointerDown = true;
+      startX = event.clientX;
+      scrollLeft = container.scrollLeft;
+      container.setPointerCapture?.(event.pointerId);
+      container.classList.add("cursor-grabbing");
     };
-  }, []);
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isPointerDown) return;
+      const deltaX = event.clientX - startX;
+      container.scrollLeft = scrollLeft - deltaX;
+    };
+
+    const endPointerDrag = (event: PointerEvent) => {
+      if (!isPointerDown) return;
+      isPointerDown = false;
+      container.releasePointerCapture?.(event.pointerId);
+      container.classList.remove("cursor-grabbing");
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+        container.scrollLeft += event.deltaY;
+        event.preventDefault();
+      }
+    };
+
+    container.addEventListener("pointerdown", handlePointerDown);
+    container.addEventListener("pointermove", handlePointerMove);
+    container.addEventListener("pointerup", endPointerDrag);
+    container.addEventListener("pointerleave", endPointerDrag);
+    container.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener("pointerdown", handlePointerDown);
+      container.removeEventListener("pointermove", handlePointerMove);
+      container.removeEventListener("pointerup", endPointerDrag);
+      container.removeEventListener("pointerleave", endPointerDrag);
+      container.removeEventListener("wheel", handleWheel);
+    };
+  }, [mediaLibrary.length]);
 
   // Set canvas size and render initial frame
   useEffect(() => {
@@ -989,7 +1062,11 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
         </div>
 
         {mediaLibrary.length > 0 ? (
-          <ScrollShadow orientation="horizontal" className="overflow-x-auto">
+          <ScrollShadow
+            orientation="horizontal"
+            className="overflow-x-auto scroll-smooth cursor-grab"
+            ref={libraryScrollRef}
+          >
             <div className="flex gap-4 pb-1">
               {mediaLibrary.map((item) => {
                 const isInTimeline = timelineItems.some((ti) => ti.libraryItemId === item.id);

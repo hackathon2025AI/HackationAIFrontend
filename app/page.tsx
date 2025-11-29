@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
+import { useProject } from "@/context/project-context";
 
 type Option = {
   value: string;
@@ -103,13 +103,23 @@ const OptionGroup = ({
 
 export default function Home() {
   const router = useRouter();
-  const [occasion, setOccasion] = useState("birthday");
-  const [occasionCustomDetail, setOccasionCustomDetail] = useState("");
-  const [relation, setRelation] = useState("partner");
-  const [relationCustomDetail, setRelationCustomDetail] = useState("");
-  const [vibe, setVibe] = useState("pop");
-  const [vibeCustomDetail, setVibeCustomDetail] = useState("");
-  const [recipientName, setRecipientName] = useState("");
+  const { data, setStartData } = useProject();
+
+  const occasion = data.start.occasion;
+  const occasionCustomDetail = data.start.occasionCustomDetail ?? "";
+  const relation = data.start.relation;
+  const relationCustomDetail = data.start.relationCustomDetail ?? "";
+  const vibe = data.start.vibe;
+  const vibeCustomDetail = data.start.vibeCustomDetail ?? "";
+  const recipientName = data.start.recipientName;
+
+  const setOccasion = (v: string) => setStartData({ occasion: v });
+  const setOccasionCustomDetail = (v: string) => setStartData({ occasionCustomDetail: v || null });
+  const setRelation = (v: string) => setStartData({ relation: v });
+  const setRelationCustomDetail = (v: string) => setStartData({ relationCustomDetail: v || null });
+  const setVibe = (v: string) => setStartData({ vibe: v });
+  const setVibeCustomDetail = (v: string) => setStartData({ vibeCustomDetail: v || null });
+  const setRecipientName = (v: string) => setStartData({ recipientName: v });
 
   return (
     <section className="relative min-h-[calc(100vh-6rem)] w-full px-4 py-12 md:px-8 md:py-4">

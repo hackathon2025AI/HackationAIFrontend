@@ -3,6 +3,12 @@
 import { useState } from "react";
 import clsx from "clsx";
 import { VideoEditor } from "./video-editor";
+import type {
+  ChatMessage,
+  VideoSettings,
+  SerializedLibraryItem,
+  SerializedTimelineItem,
+} from "@/context/project-context";
 
 interface VideoEditorStepProps {
   formData: {
@@ -10,9 +16,9 @@ interface VideoEditorStepProps {
     description: string;
     type: string;
   };
-  chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
-  videoData: any;
-  onVideoUpdate: (data: any) => void;
+  chatHistory: ChatMessage[];
+  videoData: VideoSettings;
+  onVideoUpdate: (data: Partial<VideoSettings>) => void;
   onComplete: () => void;
   onBack: () => void;
 }
@@ -26,16 +32,16 @@ export function VideoEditorStep({
   onBack,
 }: VideoEditorStepProps) {
   const resolutionOptions = ["720p", "1080p", "1440p", "4K"];
+  const frameRateOptions = [24, 30, 48, 60];
   const aspectRatioOptions = ["16:9", "9:16", "1:1", "4:3"];
 
-  const [videoSettings, setVideoSettings] = useState({
+  const [videoSettings, setVideoSettings] = useState<VideoSettings>({
     duration: 30,
     resolution: "1080p",
     frameRate: 30,
     aspectRatio: "16:9",
-    enableTransitions: true,
-    enableMusic: false,
-    volume: 50,
+    timelineItems: [],
+    libraryItems: [],
     ...videoData,
   });
 
@@ -56,29 +62,45 @@ export function VideoEditorStep({
     onVideoUpdate(updatedVideoData);
   };
 
-  const handleMediaUpdate = (timelineItems: any[], libraryItems: any[]) => {
-    // Update video data with timeline and library items
-    const updatedVideoData = {
+  const handleMediaUpdate = (
+    timelineItems: SerializedTimelineItem[],
+    libraryItems: Array<SerializedLibraryItem & { file?: File }>
+  ) => {
+    const serializedTimeline = timelineItems.map((item) => ({
+      id: item.id,
+      libraryItemId: item.libraryItemId,
+      duration: item.duration,
+      startTime: item.startTime,
+      transition: item.transition,
+      transitionDuration: item.transitionDuration,
+    }));
+
+    const serializedLibrary = libraryItems.map((item) => ({
+      id: item.id,
+      type: item.type,
+      url: item.url,
+      duration: item.duration,
+      fileName: item.file?.name || item.fileName,
+    }));
+
+    const updatedVideoData: VideoSettings = {
       ...videoSettings,
-      timelineItems: timelineItems.map((item) => ({
-        id: item.id,
-        libraryItemId: item.libraryItemId,
-        duration: item.duration,
-        startTime: item.startTime,
-      })),
-      libraryItems: libraryItems.map((item) => ({
-        id: item.id,
-        type: item.type,
-        fileName: item.file.name,
-        duration: item.duration,
-      })),
+      timelineItems: serializedTimeline,
+      libraryItems: serializedLibrary,
     };
+
+    setVideoSettings(updatedVideoData);
     onVideoUpdate(updatedVideoData);
   };
 
   return (
     <div className="flex flex-col gap-6">
-      <VideoEditor onExport={handleVideoExport} onUpdate={handleMediaUpdate} />
+      <VideoEditor
+        onExport={handleVideoExport}
+        onUpdate={handleMediaUpdate}
+        initialLibraryItems={videoData?.libraryItems}
+        initialTimelineItems={videoData?.timelineItems}
+      />
 
       <div className="neon-panel neon-panel--muted space-y-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -124,62 +146,21 @@ export function VideoEditorStep({
           </section>
 
           <section className="space-y-3">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/55">
-              Frame rate
-            </p>
-            <p className="text-sm text-white/70">Aktualnie: {videoSettings.frameRate} fps</p>
-            <input
-              type="range"
-              min={24}
-              max={60}
-              step={6}
-              value={videoSettings.frameRate}
-              onChange={(e) => handleSettingChange("frameRate", parseInt(e.target.value))}
-              className="w-full accent-pink-400"
-            />
-            <div className="flex justify-between text-[11px] uppercase tracking-[0.35em] text-white/40">
-              <span>24fps</span>
-              <span>60fps</span>
+            <p className="text-[11px] uppercase tracking-[0.35em] text-white/55">Frame rate</p>
+            <div className="flex flex-wrap gap-2">
+              {frameRateOptions.map((fps) => (
+                <button
+                  key={fps}
+                  type="button"
+                  className={clsx("option-pill", videoSettings.frameRate === fps && "is-active")}
+                  onClick={() => handleSettingChange("frameRate", fps)}
+                >
+                  {fps} fps
+                </button>
+              ))}
             </div>
           </section>
 
-          <section className="space-y-3">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/55">Efekty</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={clsx("option-pill", videoSettings.enableTransitions && "is-active")}
-                onClick={() => handleSettingChange("enableTransitions", !videoSettings.enableTransitions)}
-              >
-                Przejścia
-              </button>
-              <button
-                type="button"
-                className={clsx("option-pill", videoSettings.enableMusic && "is-active")}
-                onClick={() => handleSettingChange("enableMusic", !videoSettings.enableMusic)}
-              >
-                Muzyka
-              </button>
-            </div>
-            {videoSettings.enableMusic && (
-              <div className="space-y-2">
-                <p className="text-sm text-white/70">Głośność: {videoSettings.volume}%</p>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={videoSettings.volume}
-                  onChange={(e) => handleSettingChange("volume", parseInt(e.target.value))}
-                  className="w-full accent-indigo-400"
-                />
-                <div className="flex justify-between text-[11px] uppercase tracking-[0.35em] text-white/40">
-                  <span>0%</span>
-                  <span>100%</span>
-                </div>
-              </div>
-            )}
-          </section>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">

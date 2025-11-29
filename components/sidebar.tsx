@@ -56,7 +56,6 @@ const projectHistory: HistoryItem[] = [
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  isMobile?: boolean;
 }
 
 const typeMeta = {
@@ -87,9 +86,8 @@ const formatDate = (date: string) =>
 export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onClose,
-  isMobile = false,
 }) => {
-const renderPanel = (withClose = false) => (
+  const renderPanel = () => (
     <div className="neon-panel neon-panel--muted flex h-full flex-col gap-5 rounded-[26px] border border-white/15 bg-[#050017]/95 p-5 shadow-[0_35px_120px_rgba(84,18,140,0.35)]">
       <div className="space-y-2">
         <p className="text-[11px] uppercase tracking-[0.4em] text-white/55">
@@ -111,7 +109,7 @@ const renderPanel = (withClose = false) => (
                 as={NextLink}
                 href={`/project/${item.id}`}
                 className="group flex flex-col gap-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-white/80 transition hover:border-white/25 hover:bg-white/10"
-                onPress={withClose ? onClose : undefined}
+                onPress={onClose}
               >
                 <p className="text-xs uppercase tracking-[0.35em] text-white/45">
                   {formatDate(item.date)}
@@ -124,32 +122,29 @@ const renderPanel = (withClose = false) => (
         </div>
       </ScrollShadow>
 
-      {withClose && (
-        <Button
-          variant="light"
-          className="self-end rounded-full border border-white/20 bg-white/5 text-white"
-          onPress={onClose}
-        >
-          Zamknij
-        </Button>
-      )}
+      <Button
+        variant="light"
+        className="self-end rounded-full border border-white/20 bg-white/5 text-white"
+        onPress={onClose}
+      >
+        Zamknij
+      </Button>
     </div>
   );
 
-  if (isMobile) {
-    return (
-      <Drawer isOpen={isOpen} onClose={onClose} placement="left">
-        <DrawerContent className="bg-[#03000f]/90 p-4">
-          {renderPanel(true)}
-        </DrawerContent>
-      </Drawer>
-    );
-  }
-
   return (
-    <div className="fixed left-0 top-20 z-30 hidden h-[calc(100vh-5rem)] w-72 pr-4 pl-6 md:flex">
-      {renderPanel()}
-    </div>
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      placement="right"
+      classNames={{
+        base: "bg-transparent",
+      }}
+    >
+      <DrawerContent className="bg-[#03000f]/90 p-4">
+        {renderPanel()}
+      </DrawerContent>
+    </Drawer>
   );
 };
 

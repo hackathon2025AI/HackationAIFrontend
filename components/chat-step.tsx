@@ -5,12 +5,7 @@ import { Input } from "@heroui/input";
 import { ScrollShadow } from "@heroui/scroll-shadow";
 import { Spinner } from "@heroui/spinner";
 import clsx from "clsx";
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  timestamp?: Date;
-}
+import type { ChatMessage } from "@/context/project-context";
 
 interface ChatStepProps {
   formData: {

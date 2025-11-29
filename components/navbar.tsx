@@ -53,15 +53,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
             </NextLink>
           ))}
         </div>
-        <div className="ml-auto hidden md:block">
-          <NextLink
-            href="/project/create"
-            className="neon-button px-6 py-3 text-xs uppercase tracking-[0.2em]"
-          >
-            Zacznij Tworzyć
-          </NextLink>
-        </div>
-        <div className="ml-auto flex items-center gap-2 md:hidden">
+        <div className="ml-auto flex items-center gap-2">
           <Button
             isIconOnly
             variant="light"
@@ -71,7 +63,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
           >
             <HistoryIcon size={20} />
           </Button>
-          <NavbarMenuToggle className="text-white" />
+          <NextLink
+            href="/"
+            className="neon-button px-6 py-3 text-xs uppercase tracking-[0.2em] hidden md:inline-flex"
+          >
+            Zacznij Tworzyć
+          </NextLink>
+          <NavbarMenuToggle className="text-white md:hidden" />
         </div>
       </NavbarContent>
 
@@ -91,7 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
             </NavbarMenuItem>
           ))}
           <NavbarMenuItem>
-            <NextLink href="/project/create" className="neon-button w-full text-center">
+            <NextLink href="/" className="neon-button w-full text-center">
               Zacznij Tworzyć
             </NextLink>
           </NavbarMenuItem>

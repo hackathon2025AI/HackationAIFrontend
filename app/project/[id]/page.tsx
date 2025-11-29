@@ -232,14 +232,6 @@ export default function ProjectPage({
                       <span className="text-default-500 text-sm">Aspect Ratio:</span>
                       <p>{project.videoData.aspectRatio}</p>
                     </div>
-                    <div>
-                      <span className="text-default-500 text-sm">Transitions:</span>
-                      <p>{project.videoData.enableTransitions ? "Enabled" : "Disabled"}</p>
-                    </div>
-                    <div>
-                      <span className="text-default-500 text-sm">Background Music:</span>
-                      <p>{project.videoData.enableMusic ? `Enabled (${project.videoData.volume}%)` : "Disabled"}</p>
-                    </div>
                   </div>
                 </Tab>
               )}
