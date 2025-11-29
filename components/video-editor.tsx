@@ -2,12 +2,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@heroui/button";
-import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Input } from "@heroui/input";
 import { Chip } from "@heroui/chip";
 import { Progress } from "@heroui/progress";
 import { ScrollShadow } from "@heroui/scroll-shadow";
 import { Select, SelectItem } from "@heroui/select";
+import clsx from "clsx";
 
 interface LibraryItem {
   id: string;
@@ -41,8 +41,6 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
-  const [addingItemId, setAddingItemId] = useState<string | null>(null);
-  const [newItemDuration, setNewItemDuration] = useState(3);
   const [defaultTransition, setDefaultTransition] = useState<TransitionType>("fade");
   const [defaultTransitionDuration, setDefaultTransitionDuration] = useState(0.5);
   
@@ -149,7 +147,7 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
     const libraryItem = getLibraryItem(libraryItemId);
     if (!libraryItem) return;
 
-    const defaultDuration = libraryItem.type === "image" ? newItemDuration : (libraryItem.duration || 3);
+    const defaultDuration = libraryItem.type === "image" ? 3 : (libraryItem.duration || 3);
     
     const newTimelineItem: TimelineItem = {
       id: `${Date.now()}-${Math.random()}`,
@@ -165,7 +163,6 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
       if (onUpdate) onUpdate(updated, mediaLibrary);
       return updated;
     });
-    setAddingItemId(null);
   };
 
   // Remove item from timeline
@@ -938,32 +935,37 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
   }, [timelineItems, currentTime, isPlaying, mediaLibrary]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-8">
       {/* Media Library Section */}
-      <Card>
-        <CardHeader>
-          <h3 className="text-lg font-semibold">Media Library</h3>
-        </CardHeader>
-        <CardBody>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,video/*"
-            multiple
-            onChange={handleFileUpload}
-            className="hidden"
-            id="media-upload"
-          />
-          <div className="flex gap-2 mb-4">
+      <div className="neon-panel neon-panel--muted space-y-6">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          onChange={handleFileUpload}
+          className="hidden"
+          id="media-upload"
+        />
+        <div className="flex flex-col gap-4 md:flex-row md:items-end">
+          <div className="flex-1 space-y-2">
+            <p className="neon-section-title">1. Biblioteka mediów</p>
+            <p className="text-sm text-white/70">
+              Wgraj zdjęcia lub filmy, które staną się częścią Twojego hitu.
+            </p>
+          </div>
+          <div className="flex w-full flex-col gap-3 md:w-auto">
             <Button
               color="primary"
               onPress={() => fileInputRef.current?.click()}
-              className="flex-1"
+              className="neon-button w-full justify-center text-xs tracking-[0.25em]"
             >
-              Upload Images or Videos
+              Wgraj media
             </Button>
-            <div className="flex flex-col gap-1 min-w-[150px]">
-              <label className="text-xs text-default-500">Default Transition</label>
+            <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3">
+              <label className="text-[10px] uppercase tracking-[0.35em] text-white/60">
+                Domyślne przejście
+              </label>
               <Select
                 selectedKeys={[defaultTransition]}
                 onSelectionChange={(keys) => {
@@ -972,8 +974,15 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
                 }}
                 variant="bordered"
                 size="sm"
+                classNames={{
+                  trigger: "bg-transparent border-white/20 rounded-xl text-white",
+                  value: "text-white",
+                  label: "text-white/60",
+                  listboxWrapper: "bg-[#050017] border border-white/10 rounded-xl",
+                  popoverContent: "bg-[#050017] border border-white/10",
+                }}
               >
-                <SelectItem key="none">None</SelectItem>
+                <SelectItem key="none">Brak</SelectItem>
                 <SelectItem key="fade">Fade</SelectItem>
                 <SelectItem key="crossfade">Crossfade</SelectItem>
                 <SelectItem key="slide">Slide</SelectItem>
@@ -982,220 +991,172 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
               </Select>
             </div>
           </div>
-          
-          {mediaLibrary.length > 0 ? (
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {mediaLibrary.map((item) => {
-                const isInTimeline = timelineItems.some((ti) => ti.libraryItemId === item.id);
-                return (
-                  <Card key={item.id} className="relative">
-                    <CardBody className="p-2">
-                      {item.type === "image" ? (
-                        <img
-                          src={item.url}
-                          alt="Media"
-                          className="w-full h-24 object-cover rounded"
-                        />
-                      ) : (
-                        <video
-                          src={item.url}
-                          className="w-full h-24 object-cover rounded"
-                          muted
-                        />
+        </div>
+
+        {mediaLibrary.length > 0 ? (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {mediaLibrary.map((item) => {
+              const isInTimeline = timelineItems.some((ti) => ti.libraryItemId === item.id);
+              return (
+                <div
+                  key={item.id}
+                  className="relative rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[0_25px_60px_rgba(3,0,20,0.45)]"
+                >
+                  {item.type === "image" ? (
+                    <img
+                      src={item.url}
+                      alt="Media"
+                      className="h-28 w-full rounded-xl object-cover"
+                    />
+                  ) : (
+                    <video
+                      src={item.url}
+                      className="h-28 w-full rounded-xl object-cover"
+                      muted
+                    />
+                  )}
+                  <span className="absolute right-3 top-3 rounded-full border border-white/30 bg-black/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.35em] text-white/80">
+                    {item.type}
+                  </span>
+                  {item.type === "video" && item.duration && (
+                    <p className="mt-2 text-xs text-white/60">{item.duration.toFixed(1)}s</p>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    {item.type === "image" && !isInTimeline && (
+                      <Button
+                        size="sm"
+                        color="primary"
+                        variant="flat"
+                        onPress={() => handleAddToTimeline(item.id)}
+                        className="flex-1 rounded-full bg-white/10 text-white"
+                      >
+                        Dodaj
+                      </Button>
+                    )}
+                    {item.type === "video" && !isInTimeline && (
+                      <Button
+                        size="sm"
+                        color="primary"
+                        variant="flat"
+                        onPress={() => handleAddToTimeline(item.id)}
+                        className="flex-1 rounded-full bg-white/10 text-white"
+                      >
+                        Dodaj
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="light"
+                      color="danger"
+                      onPress={() => handleRemoveFromLibrary(item.id)}
+                      className="rounded-full border border-white/20 text-white/80"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-center text-sm text-white/60">
+            Nie dodano jeszcze żadnych mediów. Wgraj pliki, aby rozpocząć.
+          </p>
+        )}
+      </div>
+
+      {/* Timeline */}
+      <div className="neon-panel space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="neon-section-title">2. Linia czasu</p>
+          <span className="text-xs text-white/60">
+            Całkowity czas: {totalDuration.toFixed(1)}s
+          </span>
+        </div>
+        {timelineItems.length > 0 ? (
+          <>
+            <ScrollShadow className="max-h-56 overflow-x-auto">
+              <div className="flex min-w-full gap-3">
+                {timelineItems.map((item, index) => {
+                  const libraryItem = getLibraryItem(item.libraryItemId);
+                  if (!libraryItem) return null;
+
+                  const isActive = selectedTimelineItem === item.id;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={clsx(
+                        "flex-shrink-0 rounded-2xl border-2 p-2 transition-all",
+                        isActive
+                          ? "border-pink-400 bg-white/10 shadow-[0_20px_40px_rgba(255,75,216,0.25)]"
+                          : "border-white/10 bg-white/5 hover:border-white/30"
                       )}
-                      <div className="absolute top-1 right-1">
-                        <Chip size="sm" variant="flat" color="primary">
-                          {item.type}
-                        </Chip>
-                      </div>
-                      {item.type === "video" && item.duration && (
-                        <div className="mt-1 text-xs text-default-500">
+                      style={{ width: "220px" }}
+                      onClick={() => setSelectedTimelineItem(item.id)}
+                    >
+                      <div className="relative rounded-xl bg-black" style={{ height: "110px" }}>
+                        {libraryItem.type === "image" ? (
+                          <img
+                            src={libraryItem.url}
+                            alt="Preview"
+                            className="h-full w-full rounded-xl object-contain"
+                          />
+                        ) : (
+                          <video
+                            src={libraryItem.url}
+                            className="h-full w-full rounded-xl object-contain"
+                            muted
+                          />
+                        )}
+                        <span className="absolute bottom-2 right-2 rounded-full border border-white/20 bg-black/60 px-2 py-0.5 text-[10px] uppercase tracking-[0.35em] text-white">
                           {item.duration.toFixed(1)}s
-                        </div>
-                      )}
-                      <div className="mt-2 flex gap-1">
-                        {item.type === "image" && !isInTimeline && (
-                          <Button
-                            size="sm"
-                            color="primary"
-                            variant="flat"
-                            onPress={() => {
-                              setAddingItemId(item.id);
-                              setNewItemDuration(3); // Reset to default
-                            }}
-                            className="flex-1"
-                          >
-                            Add
-                          </Button>
-                        )}
-                        {item.type === "video" && !isInTimeline && (
-                          <Button
-                            size="sm"
-                            color="primary"
-                            variant="flat"
-                            onPress={() => handleAddToTimeline(item.id)}
-                            className="flex-1"
-                          >
-                            Add
-                          </Button>
-                        )}
-                        {addingItemId === item.id && item.type === "image" && (
-                          <div className="absolute inset-0 bg-black/80 rounded flex items-center justify-center p-2 z-10">
-                            <div className="bg-white dark:bg-gray-800 rounded p-3 w-full max-w-xs">
-                              <p className="text-sm font-semibold mb-2">Set Image Duration</p>
-                              <label className="text-xs text-default-500 mb-1 block">
-                                Duration: {newItemDuration.toFixed(1)} seconds
-                              </label>
-                              <input
-                                type="range"
-                                min={0.5}
-                                max={10}
-                                step={0.1}
-                                value={newItemDuration}
-                                onChange={(e) => setNewItemDuration(parseFloat(e.target.value))}
-                                className="w-full mb-3"
-                              />
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="light"
-                                  onPress={() => setAddingItemId(null)}
-                                  className="flex-1"
-                                >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  color="primary"
-                                  onPress={() => {
-                                    handleAddToTimeline(item.id);
-                                    setAddingItemId(null);
-                                  }}
-                                  className="flex-1"
-                                >
-                                  Add to Timeline
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="light"
+                          isDisabled={index === 0}
+                          onPress={() => handleMoveItem(item.id, "up")}
+                          className="flex-1 rounded-full border border-white/20 text-white/80"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          ↑
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="light"
+                          isDisabled={index === timelineItems.length - 1}
+                          onPress={() => handleMoveItem(item.id, "down")}
+                          className="flex-1 rounded-full border border-white/20 text-white/80"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          ↓
+                        </Button>
                         <Button
                           size="sm"
                           variant="light"
                           color="danger"
-                          onPress={() => handleRemoveFromLibrary(item.id)}
+                          onPress={() => handleRemoveFromTimeline(item.id)}
+                          className="flex-1 rounded-full border border-white/20 text-white/80"
+                          onClick={(e) => e.stopPropagation()}
                         >
                           ×
                         </Button>
                       </div>
-                    </CardBody>
-                  </Card>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-center text-default-500 mt-4 text-sm">
-              No media uploaded yet. Click above to upload images or videos.
-            </p>
-          )}
-        </CardBody>
-      </Card>
-
-      {/* Timeline */}
-      <Card>
-        <CardHeader>
-          <h3 className="text-lg font-semibold">Timeline</h3>
-        </CardHeader>
-        <CardBody>
-          {timelineItems.length > 0 ? (
-            <>
-              <ScrollShadow className="max-h-48 overflow-x-auto">
-                <div className="flex gap-2 min-w-full">
-                  {timelineItems.map((item, index) => {
-                    const libraryItem = getLibraryItem(item.libraryItemId);
-                    if (!libraryItem) return null;
-                    
-                    return (
-                      <div
-                        key={item.id}
-                        className={`flex-shrink-0 border-2 rounded overflow-hidden cursor-pointer transition-all ${
-                          selectedTimelineItem === item.id
-                            ? "border-primary bg-primary-50 dark:bg-primary-900"
-                            : "border-default-200"
-                        }`}
-                        style={{ width: "200px" }}
-                        onClick={() => setSelectedTimelineItem(item.id)}
-                      >
-                        <div className="relative bg-black" style={{ width: "200px", height: "100px" }}>
-                          {libraryItem.type === "image" ? (
-                            <img
-                              src={libraryItem.url}
-                              alt="Preview"
-                              className="w-full h-full object-contain"
-                              style={{ width: "200px", height: "100px" }}
-                            />
-                          ) : (
-                            <video
-                              src={libraryItem.url}
-                              className="w-full h-full object-contain"
-                              style={{ width: "200px", height: "100px" }}
-                              muted
-                            />
-                          )}
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
-                            <Chip size="sm" variant="flat" className="text-white bg-black/50">
-                              {item.duration.toFixed(1)}s
-                            </Chip>
-                          </div>
-                        </div>
-                        <div className="flex gap-1 p-1 bg-default-50 dark:bg-default-100">
-                          <Button
-                            size="sm"
-                            variant="light"
-                            isDisabled={index === 0}
-                            onPress={() => handleMoveItem(item.id, "up")}
-                            className="flex-1 min-w-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            ↑
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="light"
-                            isDisabled={index === timelineItems.length - 1}
-                            onPress={() => handleMoveItem(item.id, "down")}
-                            className="flex-1 min-w-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            ↓
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="light"
-                            color="danger"
-                            onPress={() => handleRemoveFromTimeline(item.id)}
-                            className="flex-1 min-w-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            ×
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollShadow>
-              <div className="mt-2 text-xs text-default-500">
-                Total Duration: {totalDuration.toFixed(1)}s
+                    </div>
+                  );
+                })}
               </div>
-            </>
-          ) : (
-            <p className="text-center text-default-500 py-8 text-sm">
-              Timeline is empty. Add items from the media library above.
-            </p>
-          )}
-        </CardBody>
-      </Card>
+            </ScrollShadow>
+          </>
+        ) : (
+          <p className="py-8 text-center text-sm text-white/60">
+            Linia czasu jest pusta. Dodaj media z sekcji powyżej.
+          </p>
+        )}
+      </div>
 
       {/* Item Settings */}
       {selectedTimelineItem && (() => {
@@ -1203,202 +1164,224 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
         if (!item) return null;
         const libraryItem = getLibraryItem(item.libraryItemId);
         if (!libraryItem) return null;
-        
+
         return (
-          <Card>
-            <CardHeader>
-              <h3 className="text-lg font-semibold">Edit Timeline Item</h3>
-            </CardHeader>
-            <CardBody>
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label className="text-sm text-foreground-500 mb-2 block">
-                    Duration
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="flat"
-                      isDisabled={libraryItem.type === "video" || item.duration <= 0.5}
-                      onPress={() => handleDurationChange(item.id, Math.max(0.5, item.duration - 0.1))}
-                    >
-                      −
-                    </Button>
-                    <Input
-                      type="number"
-                      value={item.duration.toFixed(1)}
-                      onChange={(e) => {
-                        const value = parseFloat(e.target.value);
-                        if (!isNaN(value) && value >= 0.5 && value <= 10) {
-                          handleDurationChange(item.id, value);
-                        }
-                      }}
-                      min={0.5}
-                      max={10}
-                      step={0.1}
-                      className="w-24 text-center"
-                      variant="bordered"
-                      size="sm"
-                      isDisabled={libraryItem.type === "video"}
-                    />
-                    <Button
-                      size="sm"
-                      variant="flat"
-                      isDisabled={libraryItem.type === "video" || item.duration >= 10}
-                      onPress={() => handleDurationChange(item.id, Math.min(10, item.duration + 0.1))}
-                    >
-                      +
-                    </Button>
-                    <span className="text-sm text-default-500 ml-2">seconds</span>
-                  </div>
-                  {libraryItem.type === "video" && (
-                    <p className="text-xs text-default-500 mt-1">
-                      Video duration is fixed
-                    </p>
-                  )}
+          <div className="neon-panel neon-panel--muted space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="neon-section-title">3. Szczegóły klipu</p>
+              <span className="text-xs text-white/60">
+                {libraryItem.type === "image" ? "Zdjęcie" : "Wideo"} • {item.duration.toFixed(1)}s
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs uppercase tracking-[0.35em] text-white/60">
+                  Czas trwania
+                </label>
+                <div className="mt-2 flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    isDisabled={libraryItem.type === "video" || item.duration <= 0.5}
+                    onPress={() => handleDurationChange(item.id, Math.max(0.5, item.duration - 0.1))}
+                    className="rounded-full border border-white/20 text-white"
+                  >
+                    −
+                  </Button>
+                  <Input
+                    type="number"
+                    value={item.duration.toFixed(1)}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value) && value >= 0.5 && value <= 10) {
+                        handleDurationChange(item.id, value);
+                      }
+                    }}
+                    min={0.5}
+                    max={10}
+                    step={0.1}
+                    className="w-24 text-center"
+                    variant="bordered"
+                    size="sm"
+                    isDisabled={libraryItem.type === "video"}
+                    classNames={{
+                      inputWrapper: "bg-white/5 border-white/20 rounded-2xl",
+                      input: "text-center text-white",
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    isDisabled={libraryItem.type === "video" || item.duration >= 10}
+                    onPress={() => handleDurationChange(item.id, Math.min(10, item.duration + 0.1))}
+                    className="rounded-full border border-white/20 text-white"
+                  >
+                    +
+                  </Button>
+                  <span className="text-sm text-white/60">sekundy</span>
                 </div>
-                
-                {libraryItem.type === "image" && (
-                  <>
-                    <div>
-                      <label className="text-sm text-foreground-500 mb-2 block">
-                        Transition to Next
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {(["none", "fade", "crossfade", "slide", "zoom", "wipe"] as TransitionType[]).map((transition) => (
+                {libraryItem.type === "video" && (
+                  <p className="mt-1 text-xs text-white/50">Czas trwania wideo jest stały.</p>
+                )}
+              </div>
+
+              {libraryItem.type === "image" && (
+                <>
+                  <div>
+                    <label className="text-xs uppercase tracking-[0.35em] text-white/60">
+                      Przejście do kolejnego ujęcia
+                    </label>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(["none", "fade", "crossfade", "slide", "zoom", "wipe"] as TransitionType[]).map(
+                        (transition) => (
                           <Chip
                             key={transition}
-                            color={item.transition === transition ? "primary" : "default"}
                             variant={item.transition === transition ? "solid" : "flat"}
-                            className="cursor-pointer"
+                            color={item.transition === transition ? "primary" : "default"}
+                            className={clsx(
+                              "cursor-pointer border border-white/20 bg-white/10 text-white/80",
+                              item.transition === transition && "bg-gradient-to-r from-pink-500 to-indigo-500 text-white"
+                            )}
                             onClick={() => handleTransitionChange(item.id, transition)}
                           >
                             {transition.charAt(0).toUpperCase() + transition.slice(1)}
                           </Chip>
-                        ))}
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  {item.transition && item.transition !== "none" && (
+                    <div>
+                      <label className="text-xs uppercase tracking-[0.35em] text-white/60">
+                        Czas trwania przejścia
+                      </label>
+                      <div className="mt-2 flex items-center gap-3">
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          isDisabled={(item.transitionDuration || 0.5) <= 0.2}
+                          onPress={() =>
+                            handleTransitionChange(
+                              item.id,
+                              item.transition || "fade",
+                              Math.max(0.2, (item.transitionDuration || 0.5) - 0.1)
+                            )
+                          }
+                          className="rounded-full border border-white/20 text-white"
+                        >
+                          −
+                        </Button>
+                        <Input
+                          type="number"
+                          value={(item.transitionDuration || 0.5).toFixed(1)}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            if (!isNaN(value) && value >= 0.2 && value <= 2) {
+                              handleTransitionChange(item.id, item.transition || "fade", value);
+                            }
+                          }}
+                          min={0.2}
+                          max={2}
+                          step={0.1}
+                          className="w-24 text-center"
+                          variant="bordered"
+                          size="sm"
+                          classNames={{
+                            inputWrapper: "bg-white/5 border-white/20 rounded-2xl",
+                            input: "text-center text-white",
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          isDisabled={(item.transitionDuration || 0.5) >= 2}
+                          onPress={() =>
+                            handleTransitionChange(
+                              item.id,
+                              item.transition || "fade",
+                              Math.min(2, (item.transitionDuration || 0.5) + 0.1)
+                            )
+                          }
+                          className="rounded-full border border-white/20 text-white"
+                        >
+                          +
+                        </Button>
+                        <span className="text-sm text-white/60">sekundy</span>
                       </div>
                     </div>
-                    
-                    {item.transition && item.transition !== "none" && (
-                      <div>
-                        <label className="text-sm text-foreground-500 mb-2 block">
-                          Transition Duration
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="flat"
-                            isDisabled={(item.transitionDuration || 0.5) <= 0.2}
-                            onPress={() => handleTransitionChange(
-                              item.id, 
-                              item.transition || "fade", 
-                              Math.max(0.2, (item.transitionDuration || 0.5) - 0.1)
-                            )}
-                          >
-                            −
-                          </Button>
-                          <Input
-                            type="number"
-                            value={(item.transitionDuration || 0.5).toFixed(1)}
-                            onChange={(e) => {
-                              const value = parseFloat(e.target.value);
-                              if (!isNaN(value) && value >= 0.2 && value <= 2) {
-                                handleTransitionChange(item.id, item.transition || "fade", value);
-                              }
-                            }}
-                            min={0.2}
-                            max={2}
-                            step={0.1}
-                            className="w-24 text-center"
-                            variant="bordered"
-                            size="sm"
-                          />
-                          <Button
-                            size="sm"
-                            variant="flat"
-                            isDisabled={(item.transitionDuration || 0.5) >= 2}
-                            onPress={() => handleTransitionChange(
-                              item.id, 
-                              item.transition || "fade", 
-                              Math.min(2, (item.transitionDuration || 0.5) + 0.1)
-                            )}
-                          >
-                            +
-                          </Button>
-                          <span className="text-sm text-default-500 ml-2">seconds</span>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </CardBody>
-          </Card>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
         );
       })()}
 
       {/* Preview */}
-      <Card>
-        <CardHeader>
-          <h3 className="text-lg font-semibold">Preview</h3>
-        </CardHeader>
-        <CardBody>
-          <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
-            <canvas
-              ref={previewCanvasRef}
-              className="w-full h-full object-contain"
-              style={{ maxHeight: "400px" }}
+      <div className="neon-panel space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="neon-section-title">4. Podgląd</p>
+          {timelineItems.length > 0 && (
+            <span className="text-xs text-white/60">
+              {currentTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
+            </span>
+          )}
+        </div>
+        <div className="relative w-full overflow-hidden rounded-[30px] border border-white/10 bg-black/60">
+          <canvas
+            ref={previewCanvasRef}
+            className="h-full w-full object-contain"
+            style={{ maxHeight: "400px" }}
+          />
+          <div className="pointer-events-none absolute inset-0 rounded-[30px] border border-white/5" />
+        </div>
+
+        {timelineItems.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              size="sm"
+              color="primary"
+              onPress={isPlaying ? handlePause : handlePlay}
+              className="neon-button px-6 py-3 text-[11px]"
+            >
+              {isPlaying ? "⏸ Pauza" : "▶ Odtwórz"}
+            </Button>
+            <input
+              type="range"
+              min={0}
+              max={totalDuration}
+              step={0.1}
+              value={currentTime}
+              onChange={(e) => handleSeek(parseFloat(e.target.value))}
+              className="flex-1 accent-pink-400"
             />
           </div>
-          
-          {timelineItems.length > 0 && (
-            <div className="mt-4 flex items-center gap-2">
-              <Button
-                size="sm"
-                color="primary"
-                onPress={isPlaying ? handlePause : handlePlay}
-              >
-                {isPlaying ? "⏸ Pause" : "▶ Play"}
-              </Button>
-              <input
-                type="range"
-                min={0}
-                max={totalDuration}
-                step={0.1}
-                value={currentTime}
-                onChange={(e) => handleSeek(parseFloat(e.target.value))}
-                className="flex-1"
-              />
-              <span className="text-sm text-default-500 min-w-[80px]">
-                {currentTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
-              </span>
-            </div>
-          )}
-        </CardBody>
-      </Card>
+        )}
+      </div>
 
       {/* Export */}
       {timelineItems.length > 0 && (
-        <Card>
-          <CardBody>
-            {isExporting && (
-              <div className="mb-4">
-                <Progress value={exportProgress} color="primary" />
-                <p className="text-sm text-default-500 mt-2">
-                  Exporting video... {exportProgress.toFixed(0)}%
-                </p>
-              </div>
-            )}
-            <Button
-              color="primary"
-              onPress={handleExport}
-              isDisabled={isExporting}
-              className="w-full"
-            >
-              {isExporting ? "Exporting..." : "Export Video"}
-            </Button>
-          </CardBody>
-        </Card>
+        <div className="neon-panel neon-panel--muted space-y-4">
+          <p className="neon-section-title">5. Eksport</p>
+          {isExporting && (
+            <div className="space-y-2">
+              <Progress value={exportProgress} color="primary" className="rounded-full" />
+              <p className="text-sm text-white/70">
+                Renderuję video... {exportProgress.toFixed(0)}%
+              </p>
+            </div>
+          )}
+          <Button
+            color="primary"
+            onPress={handleExport}
+            isDisabled={isExporting}
+            className="neon-button w-full justify-center text-[11px]"
+          >
+            {isExporting ? "Eksportuję..." : "Eksportuj video"}
+          </Button>
+        </div>
       )}
     </div>
   );
