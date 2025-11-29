@@ -1,0 +1,1405 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@heroui/button";
+import { Card, CardBody, CardHeader } from "@heroui/card";
+import { Input } from "@heroui/input";
+import { Chip } from "@heroui/chip";
+import { Progress } from "@heroui/progress";
+import { ScrollShadow } from "@heroui/scroll-shadow";
+import { Select, SelectItem } from "@heroui/select";
+
+interface LibraryItem {
+  id: string;
+  type: "image" | "video";
+  file: File;
+  url: string;
+  duration?: number; // For videos, this is the video's natural duration
+}
+
+type TransitionType = "none" | "fade" | "slide" | "zoom" | "crossfade" | "wipe";
+
+interface TimelineItem {
+  id: string;
+  libraryItemId: string; // Reference to library item
+  duration: number; // Duration in seconds (for images, this is display duration)
+  startTime: number; // Start time in the timeline
+  transition?: TransitionType; // Transition effect to next item
+  transitionDuration?: number; // Transition duration in seconds (0.5-2s)
+}
+
+interface VideoEditorProps {
+  onExport?: (videoBlob: Blob) => void;
+  onUpdate?: (timelineItems: TimelineItem[], libraryItems: LibraryItem[]) => void;
+}
+
+export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
+  const [mediaLibrary, setMediaLibrary] = useState<LibraryItem[]>([]);
+  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
+  const [selectedTimelineItem, setSelectedTimelineItem] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [addingItemId, setAddingItemId] = useState<string | null>(null);
+  const [newItemDuration, setNewItemDuration] = useState(3);
+  const [defaultTransition, setDefaultTransition] = useState<TransitionType>("fade");
+  const [defaultTransitionDuration, setDefaultTransitionDuration] = useState(0.5);
+  
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isPlayingRef = useRef(false);
+  const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+
+  // Calculate total duration
+  const totalDuration = timelineItems.reduce((acc, item) => {
+    const endTime = item.startTime + item.duration;
+    return Math.max(acc, endTime);
+  }, 0);
+
+  // Get library item by ID
+  const getLibraryItem = (id: string) => {
+    return mediaLibrary.find((item) => item.id === id);
+  };
+
+  // Handle file upload to library
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    
+    files.forEach((file) => {
+      const isVideo = file.type.startsWith("video/");
+      const isImage = file.type.startsWith("image/");
+      
+      if (!isVideo && !isImage) {
+        alert(`${file.name} is not a valid image or video file`);
+        return;
+      }
+
+      const url = URL.createObjectURL(file);
+      const id = `${Date.now()}-${Math.random()}`;
+      
+      const newItem: LibraryItem = {
+        id,
+        type: isVideo ? "video" : "image",
+        file,
+        url,
+      };
+
+      // If it's a video, get its duration
+      if (isVideo) {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.onloadedmetadata = () => {
+          setMediaLibrary((prev) => {
+            const updated = prev.map((item) =>
+              item.id === id ? { ...item, duration: video.duration } : item
+            );
+            if (onUpdate) onUpdate(timelineItems, updated);
+            return updated;
+          });
+        };
+        video.src = url;
+      }
+
+      setMediaLibrary((prev) => {
+        const updated = [...prev, newItem];
+        if (onUpdate) onUpdate(timelineItems, updated);
+        return updated;
+      });
+    });
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // Remove item from library
+  const handleRemoveFromLibrary = (id: string) => {
+    setMediaLibrary((prev) => {
+      const updated = prev.filter((item) => {
+        if (item.id === id) {
+          URL.revokeObjectURL(item.url);
+          return false;
+        }
+        return true;
+      });
+      // Also remove from timeline if it exists there
+      setTimelineItems((prev) => {
+        const filtered = prev.filter((item) => item.libraryItemId !== id);
+        // Recalculate start times
+        let currentTime = 0;
+        const reordered = filtered.map((item) => {
+          const newItem = { ...item, startTime: currentTime };
+          currentTime += item.duration;
+          return newItem;
+        });
+        if (onUpdate) onUpdate(reordered, updated);
+        return reordered;
+      });
+      if (onUpdate) onUpdate(timelineItems, updated);
+      return updated;
+    });
+  };
+
+  // Add item from library to timeline
+  const handleAddToTimeline = (libraryItemId: string) => {
+    const libraryItem = getLibraryItem(libraryItemId);
+    if (!libraryItem) return;
+
+    const defaultDuration = libraryItem.type === "image" ? newItemDuration : (libraryItem.duration || 3);
+    
+    const newTimelineItem: TimelineItem = {
+      id: `${Date.now()}-${Math.random()}`,
+      libraryItemId: libraryItemId,
+      duration: defaultDuration,
+      startTime: totalDuration, // Add at the end
+      transition: defaultTransition,
+      transitionDuration: defaultTransitionDuration,
+    };
+
+    setTimelineItems((prev) => {
+      const updated = [...prev, newTimelineItem];
+      if (onUpdate) onUpdate(updated, mediaLibrary);
+      return updated;
+    });
+    setAddingItemId(null);
+  };
+
+  // Remove item from timeline
+  const handleRemoveFromTimeline = (id: string) => {
+    setTimelineItems((prev) => {
+      const filtered = prev.filter((item) => item.id !== id);
+      // Recalculate start times
+      let currentTime = 0;
+      const reordered = filtered.map((item) => {
+        const newItem = { ...item, startTime: currentTime };
+        currentTime += item.duration;
+        return newItem;
+      });
+      if (onUpdate) onUpdate(reordered, mediaLibrary);
+      return reordered;
+    });
+    if (selectedTimelineItem === id) {
+      setSelectedTimelineItem(null);
+    }
+  };
+
+  // Update timeline item duration
+  const handleDurationChange = (id: string, duration: number) => {
+    setTimelineItems((prev) => {
+      const updated = prev.map((item) =>
+        item.id === id ? { ...item, duration: Math.max(0.5, duration) } : item
+      );
+      // Recalculate start times
+      let currentTime = 0;
+      const reordered = updated.map((item) => {
+        const newItem = { ...item, startTime: currentTime };
+        currentTime += item.duration;
+        return newItem;
+      });
+      if (onUpdate) onUpdate(reordered, mediaLibrary);
+      return reordered;
+    });
+  };
+
+  // Update timeline item transition
+  const handleTransitionChange = (id: string, transition: TransitionType, transitionDuration?: number) => {
+    setTimelineItems((prev) => {
+      const updated = prev.map((item) =>
+        item.id === id 
+          ? { ...item, transition, transitionDuration: transitionDuration ?? item.transitionDuration ?? 0.5 }
+          : item
+      );
+      if (onUpdate) onUpdate(updated, mediaLibrary);
+      return updated;
+    });
+  };
+
+  // Render transition between two images
+  const renderTransition = (
+    ctx: CanvasRenderingContext2D,
+    img1: HTMLImageElement,
+    img2: HTMLImageElement,
+    progress: number, // 0 to 1
+    transitionType: TransitionType,
+    canvasWidth: number,
+    canvasHeight: number
+  ) => {
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    const scale1 = Math.min(canvasWidth / img1.width, canvasHeight / img1.height);
+    const x1 = (canvasWidth - img1.width * scale1) / 2;
+    const y1 = (canvasHeight - img1.height * scale1) / 2;
+
+    const scale2 = Math.min(canvasWidth / img2.width, canvasHeight / img2.height);
+    const x2 = (canvasWidth - img2.width * scale2) / 2;
+    const y2 = (canvasHeight - img2.height * scale2) / 2;
+
+    switch (transitionType) {
+      case "fade":
+        // Fade out first, fade in second
+        ctx.globalAlpha = 1 - progress;
+        ctx.drawImage(img1, x1, y1, img1.width * scale1, img1.height * scale1);
+        ctx.globalAlpha = progress;
+        ctx.drawImage(img2, x2, y2, img2.width * scale2, img2.height * scale2);
+        ctx.globalAlpha = 1;
+        break;
+
+      case "crossfade":
+        // Both visible, crossfade
+        ctx.globalAlpha = 1 - progress;
+        ctx.drawImage(img1, x1, y1, img1.width * scale1, img1.height * scale1);
+        ctx.globalAlpha = progress;
+        ctx.drawImage(img2, x2, y2, img2.width * scale2, img2.height * scale2);
+        ctx.globalAlpha = 1;
+        break;
+
+      case "slide":
+        // Slide second image from right
+        ctx.drawImage(img1, x1, y1, img1.width * scale1, img1.height * scale1);
+        ctx.save();
+        ctx.translate(canvasWidth * (1 - progress), 0);
+        ctx.drawImage(img2, x2, y2, img2.width * scale2, img2.height * scale2);
+        ctx.restore();
+        break;
+
+      case "zoom":
+        // Zoom out first, zoom in second
+        const zoom1 = 1 + progress * 0.3;
+        const zoom2 = 0.7 + progress * 0.3;
+        
+        ctx.save();
+        ctx.translate(canvasWidth / 2, canvasHeight / 2);
+        ctx.scale(zoom1, zoom1);
+        ctx.globalAlpha = 1 - progress;
+        ctx.drawImage(img1, x1 - canvasWidth / 2, y1 - canvasHeight / 2, img1.width * scale1, img1.height * scale1);
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(canvasWidth / 2, canvasHeight / 2);
+        ctx.scale(zoom2, zoom2);
+        ctx.globalAlpha = progress;
+        ctx.drawImage(img2, x2 - canvasWidth / 2, y2 - canvasHeight / 2, img2.width * scale2, img2.height * scale2);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+        break;
+
+      case "wipe":
+        // Wipe from left to right
+        ctx.drawImage(img1, x1, y1, img1.width * scale1, img1.height * scale1);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, canvasWidth * progress, canvasHeight);
+        ctx.clip();
+        ctx.drawImage(img2, x2, y2, img2.width * scale2, img2.height * scale2);
+        ctx.restore();
+        break;
+
+      default:
+        // No transition, just show second image
+        ctx.drawImage(img2, x2, y2, img2.width * scale2, img2.height * scale2);
+    }
+  };
+
+  // Move item up/down in timeline
+  const handleMoveItem = (id: string, direction: "up" | "down") => {
+    setTimelineItems((prev) => {
+      const index = prev.findIndex((item) => item.id === id);
+      if (index === -1) return prev;
+      
+      const newIndex = direction === "up" ? index - 1 : index + 1;
+      if (newIndex < 0 || newIndex >= prev.length) return prev;
+
+      const updated = [...prev];
+      [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
+      
+      // Recalculate start times
+      let currentTime = 0;
+      const reordered = updated.map((item) => {
+        const newItem = { ...item, startTime: currentTime };
+        currentTime += item.duration;
+        return newItem;
+      });
+      if (onUpdate) onUpdate(reordered, mediaLibrary);
+      return reordered;
+    });
+  };
+
+  // Playback controls
+  const handlePlay = () => {
+    if (!previewCanvasRef.current || timelineItems.length === 0) return;
+    setIsPlaying(true);
+    isPlayingRef.current = true;
+    
+    const canvas = previewCanvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const startTime = Date.now() - currentTime * 1000;
+    const videoElements = new Map<string, HTMLVideoElement>();
+
+    // Preload all images
+    const imagePromises: Promise<void>[] = [];
+    timelineItems.forEach((item) => {
+      const libraryItem = getLibraryItem(item.libraryItemId);
+      if (libraryItem && libraryItem.type === "image") {
+        const cacheKey = libraryItem.url;
+        if (!imageCacheRef.current.has(cacheKey)) {
+          const img = new Image();
+          const promise = new Promise<void>((resolve) => {
+            img.onload = () => {
+              imageCacheRef.current.set(cacheKey, img);
+              resolve();
+            };
+            img.onerror = () => resolve(); // Continue even if image fails
+            img.src = libraryItem.url;
+          });
+          imagePromises.push(promise);
+        }
+      }
+    });
+
+    // Preload video elements
+    timelineItems.forEach((item) => {
+      const libraryItem = getLibraryItem(item.libraryItemId);
+      if (libraryItem && libraryItem.type === "video") {
+        const video = document.createElement("video");
+        video.src = libraryItem.url;
+        video.preload = "auto";
+        video.muted = true;
+        videoElements.set(item.id, video);
+      }
+    });
+
+    // Wait for images to load, then start rendering
+    Promise.all(imagePromises).then(() => {
+      if (!isPlayingRef.current) return; // Check if still playing after images load
+
+    const renderFrame = () => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      
+      if (elapsed >= totalDuration) {
+        setIsPlaying(false);
+        isPlayingRef.current = false;
+        setCurrentTime(0);
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        videoElements.forEach((video) => {
+          video.pause();
+          video.currentTime = 0;
+        });
+        return;
+      }
+
+      setCurrentTime(elapsed);
+
+      // Find current item and check for transition
+      const currentItem = timelineItems.find(
+        (item) => elapsed >= item.startTime && elapsed < item.startTime + item.duration
+      );
+
+      // Check if we're in a transition period
+      const currentIndex = currentItem ? timelineItems.findIndex((item) => item.id === currentItem.id) : -1;
+      const nextItem = currentIndex >= 0 && currentIndex < timelineItems.length - 1 
+        ? timelineItems[currentIndex + 1] 
+        : null;
+      
+      const transitionDuration = currentItem?.transitionDuration || 0.5;
+      const isInTransition = currentItem && nextItem && 
+        elapsed >= currentItem.startTime + currentItem.duration - transitionDuration &&
+        elapsed < currentItem.startTime + currentItem.duration &&
+        currentItem.transition && currentItem.transition !== "none";
+
+      if (isInTransition && currentItem && nextItem) {
+        const libraryItem1 = getLibraryItem(currentItem.libraryItemId);
+        const libraryItem2 = getLibraryItem(nextItem.libraryItemId);
+        
+        if (libraryItem1 && libraryItem2 && 
+            libraryItem1.type === "image" && libraryItem2.type === "image") {
+          const transitionProgress = Math.max(0, Math.min(1, 
+            (elapsed - (currentItem.startTime + currentItem.duration - transitionDuration)) / transitionDuration
+          ));
+          
+          const img1 = imageCacheRef.current.get(libraryItem1.url);
+          const img2 = imageCacheRef.current.get(libraryItem2.url);
+          
+          if (img1 && img2) {
+            renderTransition(
+              ctx,
+              img1,
+              img2,
+              transitionProgress,
+              currentItem.transition || "fade",
+              canvas.width,
+              canvas.height
+            );
+          }
+        } else {
+          // Fallback to normal rendering
+          if (currentItem) {
+            const libraryItem = getLibraryItem(currentItem.libraryItemId);
+            if (!libraryItem) return;
+
+            if (libraryItem.type === "image") {
+              const img = imageCacheRef.current.get(libraryItem.url);
+              if (img) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#000";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const scale = Math.min(
+                  canvas.width / img.width,
+                  canvas.height / img.height
+                );
+                const x = (canvas.width - img.width * scale) / 2;
+                const y = (canvas.height - img.height * scale) / 2;
+                
+                ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+              }
+            }
+          }
+        }
+      } else if (currentItem) {
+        const libraryItem = getLibraryItem(currentItem.libraryItemId);
+        if (!libraryItem) return;
+
+        if (libraryItem.type === "image") {
+          const img = imageCacheRef.current.get(libraryItem.url);
+          if (img) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Center and scale image
+            const scale = Math.min(
+              canvas.width / img.width,
+              canvas.height / img.height
+            );
+            const x = (canvas.width - img.width * scale) / 2;
+            const y = (canvas.height - img.height * scale) / 2;
+            
+            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+          }
+        } else {
+          // For video
+          const video = videoElements.get(currentItem.id);
+          if (video) {
+            const videoTime = elapsed - currentItem.startTime;
+            if (Math.abs(video.currentTime - videoTime) > 0.1) {
+              video.currentTime = videoTime;
+            }
+            if (video.readyState >= 2) {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.fillStyle = "#000";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              
+              const scale = Math.min(
+                canvas.width / video.videoWidth,
+                canvas.height / video.videoHeight
+              );
+              const x = (canvas.width - video.videoWidth * scale) / 2;
+              const y = (canvas.height - video.videoHeight * scale) / 2;
+              
+              ctx.drawImage(video, x, y, video.videoWidth * scale, video.videoHeight * scale);
+            }
+          }
+        }
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      if (isPlayingRef.current) {
+        animationFrameRef.current = requestAnimationFrame(renderFrame);
+      }
+    };
+
+    renderFrame();
+    });
+  };
+
+  const handlePause = () => {
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    // Update canvas with current frame when paused
+    if (previewCanvasRef.current && timelineItems.length > 0) {
+      const canvas = previewCanvasRef.current;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const currentItem = timelineItems.find(
+        (item) => currentTime >= item.startTime && currentTime < item.startTime + item.duration
+      );
+
+      if (currentItem) {
+        const libraryItem = getLibraryItem(currentItem.libraryItemId);
+        if (libraryItem && libraryItem.type === "image") {
+          const img = new Image();
+          img.onload = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const scale = Math.min(
+              canvas.width / img.width,
+              canvas.height / img.height
+            );
+            const x = (canvas.width - img.width * scale) / 2;
+            const y = (canvas.height - img.height * scale) / 2;
+            
+            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+          };
+          img.src = libraryItem.url;
+        }
+      }
+    }
+  };
+
+  const handleSeek = (time: number) => {
+    const newTime = Math.max(0, Math.min(time, totalDuration));
+    setCurrentTime(newTime);
+    
+    // Update preview immediately
+    if (previewCanvasRef.current && timelineItems.length > 0) {
+      const canvas = previewCanvasRef.current;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const currentItem = timelineItems.find(
+        (item) => newTime >= item.startTime && newTime < item.startTime + item.duration
+      );
+
+      if (currentItem) {
+        const libraryItem = getLibraryItem(currentItem.libraryItemId);
+        if (!libraryItem) return;
+
+        if (libraryItem.type === "image") {
+          const img = imageCacheRef.current.get(libraryItem.url);
+          if (img) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const scale = Math.min(
+              canvas.width / img.width,
+              canvas.height / img.height
+            );
+            const x = (canvas.width - img.width * scale) / 2;
+            const y = (canvas.height - img.height * scale) / 2;
+            
+            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+          } else {
+            // If not cached, load it
+            const newImg = new Image();
+            newImg.onload = () => {
+              imageCacheRef.current.set(libraryItem.url, newImg);
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.fillStyle = "#000";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              
+              const scale = Math.min(
+                canvas.width / newImg.width,
+                canvas.height / newImg.height
+              );
+              const x = (canvas.width - newImg.width * scale) / 2;
+              const y = (canvas.height - newImg.height * scale) / 2;
+              
+              ctx.drawImage(newImg, x, y, newImg.width * scale, newImg.height * scale);
+            };
+            newImg.src = libraryItem.url;
+          }
+        } else {
+          // For video, seek to the correct time
+          const video = document.createElement("video");
+          video.src = libraryItem.url;
+          video.currentTime = newTime - currentItem.startTime;
+          video.onloadeddata = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const scale = Math.min(
+              canvas.width / video.videoWidth,
+              canvas.height / video.videoHeight
+            );
+            const x = (canvas.width - video.videoWidth * scale) / 2;
+            const y = (canvas.height - video.videoHeight * scale) / 2;
+            
+            ctx.drawImage(video, x, y, video.videoWidth * scale, video.videoHeight * scale);
+          };
+        }
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    
+    if (isPlayingRef.current) {
+      handlePause();
+      handlePlay();
+    }
+  };
+
+  // Export video using Canvas and MediaRecorder
+  const handleExport = async () => {
+    if (timelineItems.length === 0) {
+      alert("Please add at least one item to the timeline to export");
+      return;
+    }
+
+    setIsExporting(true);
+    setExportProgress(0);
+
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1920;
+      canvas.height = 1080;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not get canvas context");
+
+      const stream = canvas.captureStream(30); // 30 fps
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "video/webm;codecs=vp9",
+      });
+
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: "video/webm" });
+        if (onExport) onExport(blob);
+        setIsExporting(false);
+        setExportProgress(100);
+      };
+
+      mediaRecorder.start();
+
+      // Render each frame
+      for (let time = 0; time < totalDuration; time += 1 / 30) {
+        const currentItem = timelineItems.find(
+          (item) => time >= item.startTime && time < item.startTime + item.duration
+        );
+
+        // Check for transition
+        const currentIndex = currentItem ? timelineItems.findIndex((item) => item.id === currentItem.id) : -1;
+        const nextItem = currentIndex >= 0 && currentIndex < timelineItems.length - 1 
+          ? timelineItems[currentIndex + 1] 
+          : null;
+        
+        const transitionDuration = currentItem?.transitionDuration || 0.5;
+        const isInTransition = currentItem && nextItem && 
+          time >= currentItem.startTime + currentItem.duration - transitionDuration &&
+          time < currentItem.startTime + currentItem.duration &&
+          currentItem.transition && currentItem.transition !== "none";
+
+        if (isInTransition && currentItem && nextItem) {
+          const libraryItem1 = getLibraryItem(currentItem.libraryItemId);
+          const libraryItem2 = getLibraryItem(nextItem.libraryItemId);
+          
+          if (libraryItem1 && libraryItem2 && 
+              libraryItem1.type === "image" && libraryItem2.type === "image") {
+            const transitionProgress = Math.max(0, Math.min(1,
+              (time - (currentItem.startTime + currentItem.duration - transitionDuration)) / transitionDuration
+            ));
+            
+            await new Promise<void>((resolve) => {
+              const img1 = new Image();
+              const img2 = new Image();
+              let loaded1 = false;
+              let loaded2 = false;
+              
+              const render = () => {
+                if (loaded1 && loaded2) {
+                  renderTransition(
+                    ctx,
+                    img1,
+                    img2,
+                    transitionProgress,
+                    currentItem.transition || "fade",
+                    canvas.width,
+                    canvas.height
+                  );
+                  resolve();
+                }
+              };
+              
+              img1.onload = () => {
+                loaded1 = true;
+                render();
+              };
+              img2.onload = () => {
+                loaded2 = true;
+                render();
+              };
+              
+              img1.src = libraryItem1.url;
+              img2.src = libraryItem2.url;
+              
+              if (img1.complete) {
+                loaded1 = true;
+                render();
+              }
+              if (img2.complete) {
+                loaded2 = true;
+                render();
+              }
+            });
+          } else {
+            // Fallback
+            if (currentItem) {
+              const libraryItem = getLibraryItem(currentItem.libraryItemId);
+              if (!libraryItem) continue;
+
+              if (libraryItem.type === "image") {
+                await new Promise<void>((resolve) => {
+                  const img = new Image();
+                  img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = "#000";
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    const scale = Math.min(
+                      canvas.width / img.width,
+                      canvas.height / img.height
+                    );
+                    const x = (canvas.width - img.width * scale) / 2;
+                    const y = (canvas.height - img.height * scale) / 2;
+                    
+                    ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                    resolve();
+                  };
+                  img.src = libraryItem.url;
+                });
+              }
+            }
+          }
+        } else if (currentItem) {
+          const libraryItem = getLibraryItem(currentItem.libraryItemId);
+          if (!libraryItem) continue;
+
+          if (libraryItem.type === "image") {
+            await new Promise<void>((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#000";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Center and scale image
+                const scale = Math.min(
+                  canvas.width / img.width,
+                  canvas.height / img.height
+                );
+                const x = (canvas.width - img.width * scale) / 2;
+                const y = (canvas.height - img.height * scale) / 2;
+                
+                ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                resolve();
+              };
+              img.src = libraryItem.url;
+            });
+          } else {
+            // For video clips
+            await new Promise<void>((resolve) => {
+              const video = document.createElement("video");
+              video.src = libraryItem.url;
+              video.currentTime = time - currentItem.startTime;
+              video.onloadeddata = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#000";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const scale = Math.min(
+                  canvas.width / video.videoWidth,
+                  canvas.height / video.videoHeight
+                );
+                const x = (canvas.width - video.videoWidth * scale) / 2;
+                const y = (canvas.height - video.videoHeight * scale) / 2;
+                
+                ctx.drawImage(video, x, y, video.videoWidth * scale, video.videoHeight * scale);
+                resolve();
+              };
+            });
+          }
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Wait for next frame
+        await new Promise((resolve) => setTimeout(resolve, 1000 / 30));
+        setExportProgress((time / totalDuration) * 100);
+      }
+
+      mediaRecorder.stop();
+    } catch (error) {
+      console.error("Export error:", error);
+      alert("Failed to export video. Please try again.");
+      setIsExporting(false);
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
+
+  // Cleanup URLs when media library changes
+  useEffect(() => {
+    return () => {
+      mediaLibrary.forEach((item) => URL.revokeObjectURL(item.url));
+    };
+  }, [mediaLibrary]);
+
+  // Set canvas size and render initial frame
+  useEffect(() => {
+    if (previewCanvasRef.current) {
+      previewCanvasRef.current.width = 1920;
+      previewCanvasRef.current.height = 1080;
+    }
+  }, []);
+
+  // Render current frame when timeline items or current time changes (when not playing)
+  useEffect(() => {
+    if (!isPlaying && previewCanvasRef.current && timelineItems.length > 0) {
+      const canvas = previewCanvasRef.current;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const currentItem = timelineItems.find(
+        (item) => currentTime >= item.startTime && currentTime < item.startTime + item.duration
+      );
+
+      if (currentItem) {
+        const libraryItem = getLibraryItem(currentItem.libraryItemId);
+        if (!libraryItem) return;
+
+        if (libraryItem.type === "image") {
+          const img = imageCacheRef.current.get(libraryItem.url);
+          if (img) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const scale = Math.min(
+              canvas.width / img.width,
+              canvas.height / img.height
+            );
+            const x = (canvas.width - img.width * scale) / 2;
+            const y = (canvas.height - img.height * scale) / 2;
+            
+            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+          }
+        } else {
+          const video = document.createElement("video");
+          video.src = libraryItem.url;
+          video.currentTime = currentTime - currentItem.startTime;
+          video.onloadeddata = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const scale = Math.min(
+              canvas.width / video.videoWidth,
+              canvas.height / video.videoHeight
+            );
+            const x = (canvas.width - video.videoWidth * scale) / 2;
+            const y = (canvas.height - video.videoHeight * scale) / 2;
+            
+            ctx.drawImage(video, x, y, video.videoWidth * scale, video.videoHeight * scale);
+          };
+        }
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  }, [timelineItems, currentTime, isPlaying, mediaLibrary]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Media Library Section */}
+      <Card>
+        <CardHeader>
+          <h3 className="text-lg font-semibold">Media Library</h3>
+        </CardHeader>
+        <CardBody>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={handleFileUpload}
+            className="hidden"
+            id="media-upload"
+          />
+          <div className="flex gap-2 mb-4">
+            <Button
+              color="primary"
+              onPress={() => fileInputRef.current?.click()}
+              className="flex-1"
+            >
+              Upload Images or Videos
+            </Button>
+            <div className="flex flex-col gap-1 min-w-[150px]">
+              <label className="text-xs text-default-500">Default Transition</label>
+              <Select
+                selectedKeys={[defaultTransition]}
+                onSelectionChange={(keys) => {
+                  const selected = Array.from(keys)[0] as TransitionType;
+                  setDefaultTransition(selected);
+                }}
+                variant="bordered"
+                size="sm"
+              >
+                <SelectItem key="none">None</SelectItem>
+                <SelectItem key="fade">Fade</SelectItem>
+                <SelectItem key="crossfade">Crossfade</SelectItem>
+                <SelectItem key="slide">Slide</SelectItem>
+                <SelectItem key="zoom">Zoom</SelectItem>
+                <SelectItem key="wipe">Wipe</SelectItem>
+              </Select>
+            </div>
+          </div>
+          
+          {mediaLibrary.length > 0 ? (
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {mediaLibrary.map((item) => {
+                const isInTimeline = timelineItems.some((ti) => ti.libraryItemId === item.id);
+                return (
+                  <Card key={item.id} className="relative">
+                    <CardBody className="p-2">
+                      {item.type === "image" ? (
+                        <img
+                          src={item.url}
+                          alt="Media"
+                          className="w-full h-24 object-cover rounded"
+                        />
+                      ) : (
+                        <video
+                          src={item.url}
+                          className="w-full h-24 object-cover rounded"
+                          muted
+                        />
+                      )}
+                      <div className="absolute top-1 right-1">
+                        <Chip size="sm" variant="flat" color="primary">
+                          {item.type}
+                        </Chip>
+                      </div>
+                      {item.type === "video" && item.duration && (
+                        <div className="mt-1 text-xs text-default-500">
+                          {item.duration.toFixed(1)}s
+                        </div>
+                      )}
+                      <div className="mt-2 flex gap-1">
+                        {item.type === "image" && !isInTimeline && (
+                          <Button
+                            size="sm"
+                            color="primary"
+                            variant="flat"
+                            onPress={() => {
+                              setAddingItemId(item.id);
+                              setNewItemDuration(3); // Reset to default
+                            }}
+                            className="flex-1"
+                          >
+                            Add
+                          </Button>
+                        )}
+                        {item.type === "video" && !isInTimeline && (
+                          <Button
+                            size="sm"
+                            color="primary"
+                            variant="flat"
+                            onPress={() => handleAddToTimeline(item.id)}
+                            className="flex-1"
+                          >
+                            Add
+                          </Button>
+                        )}
+                        {addingItemId === item.id && item.type === "image" && (
+                          <div className="absolute inset-0 bg-black/80 rounded flex items-center justify-center p-2 z-10">
+                            <div className="bg-white dark:bg-gray-800 rounded p-3 w-full max-w-xs">
+                              <p className="text-sm font-semibold mb-2">Set Image Duration</p>
+                              <label className="text-xs text-default-500 mb-1 block">
+                                Duration: {newItemDuration.toFixed(1)} seconds
+                              </label>
+                              <input
+                                type="range"
+                                min={0.5}
+                                max={10}
+                                step={0.1}
+                                value={newItemDuration}
+                                onChange={(e) => setNewItemDuration(parseFloat(e.target.value))}
+                                className="w-full mb-3"
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="light"
+                                  onPress={() => setAddingItemId(null)}
+                                  className="flex-1"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  color="primary"
+                                  onPress={() => {
+                                    handleAddToTimeline(item.id);
+                                    setAddingItemId(null);
+                                  }}
+                                  className="flex-1"
+                                >
+                                  Add to Timeline
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="light"
+                          color="danger"
+                          onPress={() => handleRemoveFromLibrary(item.id)}
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    </CardBody>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-center text-default-500 mt-4 text-sm">
+              No media uploaded yet. Click above to upload images or videos.
+            </p>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Timeline */}
+      <Card>
+        <CardHeader>
+          <h3 className="text-lg font-semibold">Timeline</h3>
+        </CardHeader>
+        <CardBody>
+          {timelineItems.length > 0 ? (
+            <>
+              <ScrollShadow className="max-h-48 overflow-x-auto">
+                <div className="flex gap-2 min-w-full">
+                  {timelineItems.map((item, index) => {
+                    const libraryItem = getLibraryItem(item.libraryItemId);
+                    if (!libraryItem) return null;
+                    
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex-shrink-0 border-2 rounded overflow-hidden cursor-pointer transition-all ${
+                          selectedTimelineItem === item.id
+                            ? "border-primary bg-primary-50 dark:bg-primary-900"
+                            : "border-default-200"
+                        }`}
+                        style={{ width: "200px" }}
+                        onClick={() => setSelectedTimelineItem(item.id)}
+                      >
+                        <div className="relative bg-black" style={{ width: "200px", height: "100px" }}>
+                          {libraryItem.type === "image" ? (
+                            <img
+                              src={libraryItem.url}
+                              alt="Preview"
+                              className="w-full h-full object-contain"
+                              style={{ width: "200px", height: "100px" }}
+                            />
+                          ) : (
+                            <video
+                              src={libraryItem.url}
+                              className="w-full h-full object-contain"
+                              style={{ width: "200px", height: "100px" }}
+                              muted
+                            />
+                          )}
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
+                            <Chip size="sm" variant="flat" className="text-white bg-black/50">
+                              {item.duration.toFixed(1)}s
+                            </Chip>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 p-1 bg-default-50 dark:bg-default-100">
+                          <Button
+                            size="sm"
+                            variant="light"
+                            isDisabled={index === 0}
+                            onPress={() => handleMoveItem(item.id, "up")}
+                            className="flex-1 min-w-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            ↑
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="light"
+                            isDisabled={index === timelineItems.length - 1}
+                            onPress={() => handleMoveItem(item.id, "down")}
+                            className="flex-1 min-w-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            ↓
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="light"
+                            color="danger"
+                            onPress={() => handleRemoveFromTimeline(item.id)}
+                            className="flex-1 min-w-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollShadow>
+              <div className="mt-2 text-xs text-default-500">
+                Total Duration: {totalDuration.toFixed(1)}s
+              </div>
+            </>
+          ) : (
+            <p className="text-center text-default-500 py-8 text-sm">
+              Timeline is empty. Add items from the media library above.
+            </p>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Item Settings */}
+      {selectedTimelineItem && (() => {
+        const item = timelineItems.find((i) => i.id === selectedTimelineItem);
+        if (!item) return null;
+        const libraryItem = getLibraryItem(item.libraryItemId);
+        if (!libraryItem) return null;
+        
+        return (
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold">Edit Timeline Item</h3>
+            </CardHeader>
+            <CardBody>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className="text-sm text-foreground-500 mb-2 block">
+                    Duration
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      isDisabled={libraryItem.type === "video" || item.duration <= 0.5}
+                      onPress={() => handleDurationChange(item.id, Math.max(0.5, item.duration - 0.1))}
+                    >
+                      −
+                    </Button>
+                    <Input
+                      type="number"
+                      value={item.duration.toFixed(1)}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        if (!isNaN(value) && value >= 0.5 && value <= 10) {
+                          handleDurationChange(item.id, value);
+                        }
+                      }}
+                      min={0.5}
+                      max={10}
+                      step={0.1}
+                      className="w-24 text-center"
+                      variant="bordered"
+                      size="sm"
+                      isDisabled={libraryItem.type === "video"}
+                    />
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      isDisabled={libraryItem.type === "video" || item.duration >= 10}
+                      onPress={() => handleDurationChange(item.id, Math.min(10, item.duration + 0.1))}
+                    >
+                      +
+                    </Button>
+                    <span className="text-sm text-default-500 ml-2">seconds</span>
+                  </div>
+                  {libraryItem.type === "video" && (
+                    <p className="text-xs text-default-500 mt-1">
+                      Video duration is fixed
+                    </p>
+                  )}
+                </div>
+                
+                {libraryItem.type === "image" && (
+                  <>
+                    <div>
+                      <label className="text-sm text-foreground-500 mb-2 block">
+                        Transition to Next
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {(["none", "fade", "crossfade", "slide", "zoom", "wipe"] as TransitionType[]).map((transition) => (
+                          <Chip
+                            key={transition}
+                            color={item.transition === transition ? "primary" : "default"}
+                            variant={item.transition === transition ? "solid" : "flat"}
+                            className="cursor-pointer"
+                            onClick={() => handleTransitionChange(item.id, transition)}
+                          >
+                            {transition.charAt(0).toUpperCase() + transition.slice(1)}
+                          </Chip>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {item.transition && item.transition !== "none" && (
+                      <div>
+                        <label className="text-sm text-foreground-500 mb-2 block">
+                          Transition Duration
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="flat"
+                            isDisabled={(item.transitionDuration || 0.5) <= 0.2}
+                            onPress={() => handleTransitionChange(
+                              item.id, 
+                              item.transition || "fade", 
+                              Math.max(0.2, (item.transitionDuration || 0.5) - 0.1)
+                            )}
+                          >
+                            −
+                          </Button>
+                          <Input
+                            type="number"
+                            value={(item.transitionDuration || 0.5).toFixed(1)}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              if (!isNaN(value) && value >= 0.2 && value <= 2) {
+                                handleTransitionChange(item.id, item.transition || "fade", value);
+                              }
+                            }}
+                            min={0.2}
+                            max={2}
+                            step={0.1}
+                            className="w-24 text-center"
+                            variant="bordered"
+                            size="sm"
+                          />
+                          <Button
+                            size="sm"
+                            variant="flat"
+                            isDisabled={(item.transitionDuration || 0.5) >= 2}
+                            onPress={() => handleTransitionChange(
+                              item.id, 
+                              item.transition || "fade", 
+                              Math.min(2, (item.transitionDuration || 0.5) + 0.1)
+                            )}
+                          >
+                            +
+                          </Button>
+                          <span className="text-sm text-default-500 ml-2">seconds</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </CardBody>
+          </Card>
+        );
+      })()}
+
+      {/* Preview */}
+      <Card>
+        <CardHeader>
+          <h3 className="text-lg font-semibold">Preview</h3>
+        </CardHeader>
+        <CardBody>
+          <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+            <canvas
+              ref={previewCanvasRef}
+              className="w-full h-full object-contain"
+              style={{ maxHeight: "400px" }}
+            />
+          </div>
+          
+          {timelineItems.length > 0 && (
+            <div className="mt-4 flex items-center gap-2">
+              <Button
+                size="sm"
+                color="primary"
+                onPress={isPlaying ? handlePause : handlePlay}
+              >
+                {isPlaying ? "⏸ Pause" : "▶ Play"}
+              </Button>
+              <input
+                type="range"
+                min={0}
+                max={totalDuration}
+                step={0.1}
+                value={currentTime}
+                onChange={(e) => handleSeek(parseFloat(e.target.value))}
+                className="flex-1"
+              />
+              <span className="text-sm text-default-500 min-w-[80px]">
+                {currentTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
+              </span>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Export */}
+      {timelineItems.length > 0 && (
+        <Card>
+          <CardBody>
+            {isExporting && (
+              <div className="mb-4">
+                <Progress value={exportProgress} color="primary" />
+                <p className="text-sm text-default-500 mt-2">
+                  Exporting video... {exportProgress.toFixed(0)}%
+                </p>
+              </div>
+            )}
+            <Button
+              color="primary"
+              onPress={handleExport}
+              isDisabled={isExporting}
+              className="w-full"
+            >
+              {isExporting ? "Exporting..." : "Export Video"}
+            </Button>
+          </CardBody>
+        </Card>
+      )}
+    </div>
+  );
+}
