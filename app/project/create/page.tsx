@@ -54,6 +54,20 @@ export default function CreateProjectPage() {
     setCurrentStep("video");
   };
 
+  const sendVideoMakerRequest = async (payload: {
+    id: string;
+    title: string;
+    description: string;
+    type: string;
+    chatHistory: Array<{ role: "user" | "assistant"; content: string }>;
+    videoData: any;
+    date: string;
+  }) => {
+    console.log("[VideoMakerAPI] POST /api/video-maker", payload);
+    // Simulate network latency
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  };
+
   const handleVideoComplete = async () => {
     // Create project with all data
     const newId = Date.now().toString();
@@ -65,8 +79,8 @@ export default function CreateProjectPage() {
       date: new Date().toISOString().split("T")[0],
     };
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Simulate API call to our future video maker service
+    await sendVideoMakerRequest(projectData);
 
     // Store in localStorage (in a real app, this would be saved to a database)
     if (typeof window !== "undefined") {

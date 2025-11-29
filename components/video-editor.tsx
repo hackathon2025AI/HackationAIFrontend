@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Chip } from "@heroui/chip";
-import { Progress } from "@heroui/progress";
 import { ScrollShadow } from "@heroui/scroll-shadow";
 import { Select, SelectItem } from "@heroui/select";
 import clsx from "clsx";
@@ -39,17 +38,18 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
   const [selectedTimelineItem, setSelectedTimelineItem] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
+  const [, setIsExporting] = useState(false);
+  const [, setExportProgress] = useState(0);
   const [defaultTransition, setDefaultTransition] = useState<TransitionType>("fade");
   const [defaultTransitionDuration, setDefaultTransitionDuration] = useState(0.5);
   
-  const previewVideoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isPlayingRef = useRef(false);
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const onUpdateRef = useRef<VideoEditorProps["onUpdate"]>();
+  const mediaLibraryRef = useRef<LibraryItem[]>([]);
 
   // Calculate total duration
   const totalDuration = timelineItems.reduce((acc, item) => {
@@ -62,6 +62,13 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
     return mediaLibrary.find((item) => item.id === id);
   };
 
+  const activeTimelineItem = selectedTimelineItem
+    ? timelineItems.find((item) => item.id === selectedTimelineItem)
+    : null;
+  const activeLibraryItem = activeTimelineItem ? getLibraryItem(activeTimelineItem.libraryItemId) : null;
+  const isDetailsDisabled = !activeTimelineItem || !activeLibraryItem;
+  const isImageClip = activeLibraryItem?.type === "image";
+
   // Handle file upload to library
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -70,8 +77,13 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
       const isVideo = file.type.startsWith("video/");
       const isImage = file.type.startsWith("image/");
       
-      if (!isVideo && !isImage) {
-        alert(`${file.name} is not a valid image or video file`);
+      if (isVideo) {
+        alert("Dodawanie klipów wideo jest chwilowo wyłączone. Wgraj proszę zdjęcia.");
+        return;
+      }
+
+      if (!isImage) {
+        alert(`${file.name} nie jest obsługiwanym plikiem graficznym`);
         return;
       }
 
@@ -94,7 +106,6 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
             const updated = prev.map((item) =>
               item.id === id ? { ...item, duration: video.duration } : item
             );
-            if (onUpdate) onUpdate(timelineItems, updated);
             return updated;
           });
         };
@@ -103,7 +114,6 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
 
       setMediaLibrary((prev) => {
         const updated = [...prev, newItem];
-        if (onUpdate) onUpdate(timelineItems, updated);
         return updated;
       });
     });
@@ -116,7 +126,7 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
 
   // Remove item from library
   const handleRemoveFromLibrary = (id: string) => {
-    setMediaLibrary((prev) => {
+      setMediaLibrary((prev) => {
       const updated = prev.filter((item) => {
         if (item.id === id) {
           URL.revokeObjectURL(item.url);
@@ -134,10 +144,8 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
           currentTime += item.duration;
           return newItem;
         });
-        if (onUpdate) onUpdate(reordered, updated);
         return reordered;
       });
-      if (onUpdate) onUpdate(timelineItems, updated);
       return updated;
     });
   };
@@ -160,7 +168,6 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
 
     setTimelineItems((prev) => {
       const updated = [...prev, newTimelineItem];
-      if (onUpdate) onUpdate(updated, mediaLibrary);
       return updated;
     });
   };
@@ -176,7 +183,6 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
         currentTime += item.duration;
         return newItem;
       });
-      if (onUpdate) onUpdate(reordered, mediaLibrary);
       return reordered;
     });
     if (selectedTimelineItem === id) {
@@ -197,7 +203,6 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
         currentTime += item.duration;
         return newItem;
       });
-      if (onUpdate) onUpdate(reordered, mediaLibrary);
       return reordered;
     });
   };
@@ -210,7 +215,6 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
           ? { ...item, transition, transitionDuration: transitionDuration ?? item.transitionDuration ?? 0.5 }
           : item
       );
-      if (onUpdate) onUpdate(updated, mediaLibrary);
       return updated;
     });
   };
@@ -322,7 +326,6 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
         currentTime += item.duration;
         return newItem;
       });
-      if (onUpdate) onUpdate(reordered, mediaLibrary);
       return reordered;
     });
   };
@@ -583,8 +586,7 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
         if (!libraryItem) return;
 
         if (libraryItem.type === "image") {
-          const img = imageCacheRef.current.get(libraryItem.url);
-          if (img) {
+          const drawImage = (img: HTMLImageElement) => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "#000";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -597,23 +599,17 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
             const y = (canvas.height - img.height * scale) / 2;
             
             ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+          };
+
+          const cachedImg = imageCacheRef.current.get(libraryItem.url);
+          if (cachedImg) {
+            drawImage(cachedImg);
           } else {
             // If not cached, load it
             const newImg = new Image();
             newImg.onload = () => {
               imageCacheRef.current.set(libraryItem.url, newImg);
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              ctx.fillStyle = "#000";
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-              
-              const scale = Math.min(
-                canvas.width / newImg.width,
-                canvas.height / newImg.height
-              );
-              const x = (canvas.width - newImg.width * scale) / 2;
-              const y = (canvas.height - newImg.height * scale) / 2;
-              
-              ctx.drawImage(newImg, x, y, newImg.width * scale, newImg.height * scale);
+              drawImage(newImg);
             };
             newImg.src = libraryItem.url;
           }
@@ -861,12 +857,21 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
     };
   }, []);
 
-  // Cleanup URLs when media library changes
+  // Keep refs in sync with latest callbacks/data
+  useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
+
+  useEffect(() => {
+    mediaLibraryRef.current = mediaLibrary;
+  }, [mediaLibrary]);
+
+  // Cleanup URLs on unmount
   useEffect(() => {
     return () => {
-      mediaLibrary.forEach((item) => URL.revokeObjectURL(item.url));
+      mediaLibraryRef.current.forEach((item) => URL.revokeObjectURL(item.url));
     };
-  }, [mediaLibrary]);
+  }, []);
 
   // Set canvas size and render initial frame
   useEffect(() => {
@@ -875,6 +880,12 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
       previewCanvasRef.current.height = 1080;
     }
   }, []);
+
+  // Notify parent component when media or timeline data changes
+  useEffect(() => {
+    if (!onUpdateRef.current) return;
+    onUpdateRef.current(timelineItems, mediaLibrary);
+  }, [timelineItems, mediaLibrary]);
 
   // Render current frame when timeline items or current time changes (when not playing)
   useEffect(() => {
@@ -892,8 +903,7 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
         if (!libraryItem) return;
 
         if (libraryItem.type === "image") {
-          const img = imageCacheRef.current.get(libraryItem.url);
-          if (img) {
+          const drawImage = (img: HTMLImageElement) => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "#000";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -906,10 +916,23 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
             const y = (canvas.height - img.height * scale) / 2;
             
             ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+          };
+
+          const cachedImg = imageCacheRef.current.get(libraryItem.url);
+          if (cachedImg) {
+            drawImage(cachedImg);
+          } else {
+            const newImg = new Image();
+            newImg.onload = () => {
+              imageCacheRef.current.set(libraryItem.url, newImg);
+              drawImage(newImg);
+            };
+            newImg.src = libraryItem.url;
           }
         } else {
           const video = document.createElement("video");
           video.src = libraryItem.url;
+          video.preload = "auto";
           video.currentTime = currentTime - currentItem.startTime;
           video.onloadeddata = () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -941,7 +964,7 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*"
+          accept="image/*"
           multiple
           onChange={handleFileUpload}
           className="hidden"
@@ -951,7 +974,7 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
           <div className="flex-1 space-y-2">
             <p className="neon-section-title">1. Biblioteka mediów</p>
             <p className="text-sm text-white/70">
-              Wgraj zdjęcia lub filmy, które staną się częścią Twojego hitu.
+              Wgraj zdjęcia, które staną się częścią Twojego hitu.
             </p>
           </div>
           <div className="flex w-full flex-col gap-3 md:w-auto">
@@ -962,102 +985,80 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
             >
               Wgraj media
             </Button>
-            <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3">
-              <label className="text-[10px] uppercase tracking-[0.35em] text-white/60">
-                Domyślne przejście
-              </label>
-              <Select
-                selectedKeys={[defaultTransition]}
-                onSelectionChange={(keys) => {
-                  const selected = Array.from(keys)[0] as TransitionType;
-                  setDefaultTransition(selected);
-                }}
-                variant="bordered"
-                size="sm"
-                classNames={{
-                  trigger: "bg-transparent border-white/20 rounded-xl text-white",
-                  value: "text-white",
-                  label: "text-white/60",
-                  listboxWrapper: "bg-[#050017] border border-white/10 rounded-xl",
-                  popoverContent: "bg-[#050017] border border-white/10",
-                }}
-              >
-                <SelectItem key="none">Brak</SelectItem>
-                <SelectItem key="fade">Fade</SelectItem>
-                <SelectItem key="crossfade">Crossfade</SelectItem>
-                <SelectItem key="slide">Slide</SelectItem>
-                <SelectItem key="zoom">Zoom</SelectItem>
-                <SelectItem key="wipe">Wipe</SelectItem>
-              </Select>
-            </div>
           </div>
         </div>
 
         {mediaLibrary.length > 0 ? (
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {mediaLibrary.map((item) => {
-              const isInTimeline = timelineItems.some((ti) => ti.libraryItemId === item.id);
-              return (
-                <div
-                  key={item.id}
-                  className="relative rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[0_25px_60px_rgba(3,0,20,0.45)]"
-                >
-                  {item.type === "image" ? (
-                    <img
-                      src={item.url}
-                      alt="Media"
-                      className="h-28 w-full rounded-xl object-cover"
-                    />
-                  ) : (
-                    <video
-                      src={item.url}
-                      className="h-28 w-full rounded-xl object-cover"
-                      muted
-                    />
-                  )}
-                  <span className="absolute right-3 top-3 rounded-full border border-white/30 bg-black/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.35em] text-white/80">
-                    {item.type}
-                  </span>
-                  {item.type === "video" && item.duration && (
-                    <p className="mt-2 text-xs text-white/60">{item.duration.toFixed(1)}s</p>
-                  )}
-                  <div className="mt-3 flex gap-2">
-                    {item.type === "image" && !isInTimeline && (
+          <ScrollShadow orientation="horizontal" className="overflow-x-auto">
+            <div className="flex gap-4 pb-1">
+              {mediaLibrary.map((item) => {
+                const isInTimeline = timelineItems.some((ti) => ti.libraryItemId === item.id);
+                return (
+                  <div
+                    key={item.id}
+                    className="relative min-w-[220px] max-w-[220px] rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[0_25px_60px_rgba(3,0,20,0.45)]"
+                  >
+                    {item.type === "image" ? (
+                      <img
+                        src={item.url}
+                        alt="Media"
+                        className="h-28 w-full rounded-xl object-cover"
+                      />
+                    ) : (
+                      <video
+                        src={item.url}
+                        className="h-28 w-full rounded-xl object-cover"
+                        muted
+                        playsInline
+                        loop
+                        autoPlay
+                        preload="metadata"
+                      />
+                    )}
+                    <span className="absolute right-3 top-3 rounded-full border border-white/30 bg-black/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.35em] text-white/80">
+                      {item.type}
+                    </span>
+                    {item.type === "video" && item.duration && (
+                      <p className="mt-2 text-xs text-white/60">{item.duration.toFixed(1)}s</p>
+                    )}
+                    <div className="mt-3 flex gap-2">
+                      {item.type === "image" && !isInTimeline && (
+                        <Button
+                          size="sm"
+                          color="primary"
+                          variant="flat"
+                          onPress={() => handleAddToTimeline(item.id)}
+                          className="flex-1 rounded-full bg-white/10 text-white"
+                        >
+                          Dodaj
+                        </Button>
+                      )}
+                      {item.type === "video" && !isInTimeline && (
+                        <Button
+                          size="sm"
+                          color="primary"
+                          variant="flat"
+                          onPress={() => handleAddToTimeline(item.id)}
+                          className="flex-1 rounded-full bg-white/10 text-white"
+                        >
+                          Dodaj
+                        </Button>
+                      )}
                       <Button
                         size="sm"
-                        color="primary"
-                        variant="flat"
-                        onPress={() => handleAddToTimeline(item.id)}
-                        className="flex-1 rounded-full bg-white/10 text-white"
+                        variant="light"
+                        color="danger"
+                        onPress={() => handleRemoveFromLibrary(item.id)}
+                        className="rounded-full border border-white/20 text-white/80"
                       >
-                        Dodaj
+                        ×
                       </Button>
-                    )}
-                    {item.type === "video" && !isInTimeline && (
-                      <Button
-                        size="sm"
-                        color="primary"
-                        variant="flat"
-                        onPress={() => handleAddToTimeline(item.id)}
-                        className="flex-1 rounded-full bg-white/10 text-white"
-                      >
-                        Dodaj
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="light"
-                      color="danger"
-                      onPress={() => handleRemoveFromLibrary(item.id)}
-                      className="rounded-full border border-white/20 text-white/80"
-                    >
-                      ×
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </ScrollShadow>
         ) : (
           <p className="text-center text-sm text-white/60">
             Nie dodano jeszcze żadnych mediów. Wgraj pliki, aby rozpocząć.
@@ -1107,6 +1108,10 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
                             src={libraryItem.url}
                             className="h-full w-full rounded-xl object-contain"
                             muted
+                            playsInline
+                            loop
+                            autoPlay
+                            preload="metadata"
                           />
                         )}
                         <span className="absolute bottom-2 right-2 rounded-full border border-white/20 bg-black/60 px-2 py-0.5 text-[10px] uppercase tracking-[0.35em] text-white">
@@ -1159,167 +1164,177 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
       </div>
 
       {/* Item Settings */}
-      {selectedTimelineItem && (() => {
-        const item = timelineItems.find((i) => i.id === selectedTimelineItem);
-        if (!item) return null;
-        const libraryItem = getLibraryItem(item.libraryItemId);
-        if (!libraryItem) return null;
+      <div className="neon-panel neon-panel--muted space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="neon-section-title">3. Szczegóły klipu</p>
+          <span className="text-xs text-white/60">
+            {activeLibraryItem
+              ? `${activeLibraryItem.type === "image" ? "Zdjęcie" : "Wideo"} • ${activeTimelineItem?.duration.toFixed(1)}s`
+              : "Brak wybranego klipu"}
+          </span>
+        </div>
 
-        return (
-          <div className="neon-panel neon-panel--muted space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="neon-section-title">3. Szczegóły klipu</p>
-              <span className="text-xs text-white/60">
-                {libraryItem.type === "image" ? "Zdjęcie" : "Wideo"} • {item.duration.toFixed(1)}s
-              </span>
+        <div className={clsx("space-y-4", isDetailsDisabled && "opacity-40")}>
+          <div>
+            <label className="text-xs uppercase tracking-[0.35em] text-white/60">Czas trwania</label>
+            <div className="mt-2 flex items-center gap-3">
+              <Button
+                size="sm"
+                variant="flat"
+                isDisabled={
+                  isDetailsDisabled ||
+                  activeLibraryItem?.type === "video" ||
+                  (activeTimelineItem ? activeTimelineItem.duration <= 0.5 : true)
+                }
+                onPress={() =>
+                  activeTimelineItem &&
+                  handleDurationChange(activeTimelineItem.id, Math.max(0.5, activeTimelineItem.duration - 0.1))
+                }
+                className="rounded-full border border-white/20 text-white"
+              >
+                −
+              </Button>
+              <Input
+                type="number"
+                value={activeTimelineItem ? activeTimelineItem.duration.toFixed(1) : "0.0"}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value);
+                  if (!activeTimelineItem || isNaN(value) || value < 0.5 || value > 10) return;
+                  handleDurationChange(activeTimelineItem.id, value);
+                }}
+                min={0.5}
+                max={10}
+                step={0.1}
+                className="w-24 text-center"
+                variant="bordered"
+                size="sm"
+                isDisabled={isDetailsDisabled || activeLibraryItem?.type === "video"}
+                classNames={{
+                  inputWrapper: "bg-white/5 border-white/20 rounded-2xl",
+                  input: "text-center text-white",
+                }}
+              />
+              <Button
+                size="sm"
+                variant="flat"
+                isDisabled={
+                  isDetailsDisabled ||
+                  activeLibraryItem?.type === "video" ||
+                  (activeTimelineItem ? activeTimelineItem.duration >= 10 : true)
+                }
+                onPress={() =>
+                  activeTimelineItem &&
+                  handleDurationChange(activeTimelineItem.id, Math.min(10, activeTimelineItem.duration + 0.1))
+                }
+                className="rounded-full border border-white/20 text-white"
+              >
+                +
+              </Button>
+              <span className="text-sm text-white/60">sekundy</span>
             </div>
+            {activeLibraryItem?.type === "video" && (
+              <p className="mt-1 text-xs text-white/50">Czas trwania wideo jest stały.</p>
+            )}
+          </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs uppercase tracking-[0.35em] text-white/60">
-                  Czas trwania
-                </label>
-                <div className="mt-2 flex items-center gap-3">
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    isDisabled={libraryItem.type === "video" || item.duration <= 0.5}
-                    onPress={() => handleDurationChange(item.id, Math.max(0.5, item.duration - 0.1))}
-                    className="rounded-full border border-white/20 text-white"
-                  >
-                    −
-                  </Button>
-                  <Input
-                    type="number"
-                    value={item.duration.toFixed(1)}
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value);
-                      if (!isNaN(value) && value >= 0.5 && value <= 10) {
-                        handleDurationChange(item.id, value);
-                      }
+          <div>
+            <label className="text-xs uppercase tracking-[0.35em] text-white/60">
+              Przejście do kolejnego ujęcia
+            </label>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(["none", "fade", "crossfade", "slide", "zoom", "wipe"] as TransitionType[]).map((transition) => {
+                const isSelected = activeTimelineItem?.transition === transition;
+                return (
+                  <Chip
+                    key={transition}
+                    variant={isSelected ? "solid" : "flat"}
+                    color={isSelected ? "primary" : "default"}
+                    className={clsx(
+                      "border border-white/20 bg-white/10 text-white/80",
+                      isSelected && "bg-gradient-to-r from-pink-500 to-indigo-500 text-white",
+                      (!isImageClip || isDetailsDisabled) && "opacity-40 pointer-events-none"
+                    )}
+                    onClick={() => {
+                      if (!activeTimelineItem || !isImageClip || isDetailsDisabled) return;
+                      handleTransitionChange(activeTimelineItem.id, transition);
                     }}
-                    min={0.5}
-                    max={10}
-                    step={0.1}
-                    className="w-24 text-center"
-                    variant="bordered"
-                    size="sm"
-                    isDisabled={libraryItem.type === "video"}
-                    classNames={{
-                      inputWrapper: "bg-white/5 border-white/20 rounded-2xl",
-                      input: "text-center text-white",
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    isDisabled={libraryItem.type === "video" || item.duration >= 10}
-                    onPress={() => handleDurationChange(item.id, Math.min(10, item.duration + 0.1))}
-                    className="rounded-full border border-white/20 text-white"
                   >
-                    +
-                  </Button>
-                  <span className="text-sm text-white/60">sekundy</span>
-                </div>
-                {libraryItem.type === "video" && (
-                  <p className="mt-1 text-xs text-white/50">Czas trwania wideo jest stały.</p>
-                )}
-              </div>
-
-              {libraryItem.type === "image" && (
-                <>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.35em] text-white/60">
-                      Przejście do kolejnego ujęcia
-                    </label>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {(["none", "fade", "crossfade", "slide", "zoom", "wipe"] as TransitionType[]).map(
-                        (transition) => (
-                          <Chip
-                            key={transition}
-                            variant={item.transition === transition ? "solid" : "flat"}
-                            color={item.transition === transition ? "primary" : "default"}
-                            className={clsx(
-                              "cursor-pointer border border-white/20 bg-white/10 text-white/80",
-                              item.transition === transition && "bg-gradient-to-r from-pink-500 to-indigo-500 text-white"
-                            )}
-                            onClick={() => handleTransitionChange(item.id, transition)}
-                          >
-                            {transition.charAt(0).toUpperCase() + transition.slice(1)}
-                          </Chip>
-                        )
-                      )}
-                    </div>
-                  </div>
-
-                  {item.transition && item.transition !== "none" && (
-                    <div>
-                      <label className="text-xs uppercase tracking-[0.35em] text-white/60">
-                        Czas trwania przejścia
-                      </label>
-                      <div className="mt-2 flex items-center gap-3">
-                        <Button
-                          size="sm"
-                          variant="flat"
-                          isDisabled={(item.transitionDuration || 0.5) <= 0.2}
-                          onPress={() =>
-                            handleTransitionChange(
-                              item.id,
-                              item.transition || "fade",
-                              Math.max(0.2, (item.transitionDuration || 0.5) - 0.1)
-                            )
-                          }
-                          className="rounded-full border border-white/20 text-white"
-                        >
-                          −
-                        </Button>
-                        <Input
-                          type="number"
-                          value={(item.transitionDuration || 0.5).toFixed(1)}
-                          onChange={(e) => {
-                            const value = parseFloat(e.target.value);
-                            if (!isNaN(value) && value >= 0.2 && value <= 2) {
-                              handleTransitionChange(item.id, item.transition || "fade", value);
-                            }
-                          }}
-                          min={0.2}
-                          max={2}
-                          step={0.1}
-                          className="w-24 text-center"
-                          variant="bordered"
-                          size="sm"
-                          classNames={{
-                            inputWrapper: "bg-white/5 border-white/20 rounded-2xl",
-                            input: "text-center text-white",
-                          }}
-                        />
-                        <Button
-                          size="sm"
-                          variant="flat"
-                          isDisabled={(item.transitionDuration || 0.5) >= 2}
-                          onPress={() =>
-                            handleTransitionChange(
-                              item.id,
-                              item.transition || "fade",
-                              Math.min(2, (item.transitionDuration || 0.5) + 0.1)
-                            )
-                          }
-                          className="rounded-full border border-white/20 text-white"
-                        >
-                          +
-                        </Button>
-                        <span className="text-sm text-white/60">sekundy</span>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
+                    {transition.charAt(0).toUpperCase() + transition.slice(1)}
+                  </Chip>
+                );
+              })}
             </div>
           </div>
-        );
-      })()}
 
-      {/* Preview */}
+          {isImageClip && (activeTimelineItem?.transition ?? "none") !== "none" && (
+            <div>
+              <label className="text-xs uppercase tracking-[0.35em] text-white/60">
+                Czas trwania przejścia
+              </label>
+              <div className="mt-2 flex items-center gap-3">
+                <Button
+                  size="sm"
+                  variant="flat"
+                  isDisabled={isDetailsDisabled || (activeTimelineItem?.transitionDuration || 0.5) <= 0.2}
+                  onPress={() =>
+                    activeTimelineItem &&
+                    handleTransitionChange(
+                      activeTimelineItem.id,
+                      activeTimelineItem.transition || "fade",
+                      Math.max(0.2, (activeTimelineItem.transitionDuration || 0.5) - 0.1)
+                    )
+                  }
+                  className="rounded-full border border-white/20 text-white"
+                >
+                  −
+                </Button>
+                <Input
+                  type="number"
+                  value={(activeTimelineItem?.transitionDuration || 0.5).toFixed(1)}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!activeTimelineItem || isNaN(value) || value < 0.2 || value > 2) return;
+                    handleTransitionChange(activeTimelineItem.id, activeTimelineItem.transition || "fade", value);
+                  }}
+                  min={0.2}
+                  max={2}
+                  step={0.1}
+                  className="w-24 text-center"
+                  variant="bordered"
+                  size="sm"
+                  isDisabled={isDetailsDisabled}
+                  classNames={{
+                    inputWrapper: "bg-white/5 border-white/20 rounded-2xl",
+                    input: "text-center text-white",
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="flat"
+                  isDisabled={isDetailsDisabled || (activeTimelineItem?.transitionDuration || 0.5) >= 2}
+                  onPress={() =>
+                    activeTimelineItem &&
+                    handleTransitionChange(
+                      activeTimelineItem.id,
+                      activeTimelineItem.transition || "fade",
+                      Math.min(2, (activeTimelineItem.transitionDuration || 0.5) + 0.1)
+                    )
+                  }
+                  className="rounded-full border border-white/20 text-white"
+                >
+                  +
+                </Button>
+                <span className="text-sm text-white/60">sekundy</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {isDetailsDisabled && (
+          <p className="text-sm text-white/70">Wybierz element z linii czasu, aby odblokować ustawienia.</p>
+        )}
+      </div>
+
       <div className="neon-panel space-y-4">
         <div className="flex items-center justify-between">
           <p className="neon-section-title">4. Podgląd</p>
@@ -1360,29 +1375,6 @@ export function VideoEditor({ onExport, onUpdate }: VideoEditorProps) {
           </div>
         )}
       </div>
-
-      {/* Export */}
-      {timelineItems.length > 0 && (
-        <div className="neon-panel neon-panel--muted space-y-4">
-          <p className="neon-section-title">5. Eksport</p>
-          {isExporting && (
-            <div className="space-y-2">
-              <Progress value={exportProgress} color="primary" className="rounded-full" />
-              <p className="text-sm text-white/70">
-                Renderuję video... {exportProgress.toFixed(0)}%
-              </p>
-            </div>
-          )}
-          <Button
-            color="primary"
-            onPress={handleExport}
-            isDisabled={isExporting}
-            className="neon-button w-full justify-center text-[11px]"
-          >
-            {isExporting ? "Eksportuję..." : "Eksportuj video"}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
