@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
-import { Card, CardBody } from "@heroui/card";
 import { ScrollShadow } from "@heroui/scroll-shadow";
 import { Spinner } from "@heroui/spinner";
+import clsx from "clsx";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -92,49 +91,41 @@ export function ChatStep({
   };
 
   return (
-    <div className="flex flex-col gap-4 h-[600px]">
+    <div className="neon-panel neon-panel--muted flex h-[600px] flex-col gap-6">
       {/* Chat Messages */}
       <ScrollShadow
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-4 bg-default-50 dark:bg-default-100 rounded-lg"
+        className="flex-1 overflow-y-auto rounded-[26px] border border-white/10 bg-white/5 px-5 py-6 backdrop-blur"
       >
         <div className="flex flex-col gap-4">
           {chatHistory.map((message, index) => (
-            <div
-              key={index}
-              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <Card
-                className={`max-w-[80%] ${
+            <div key={index} className={clsx("flex", message.role === "user" ? "justify-end" : "justify-start")}>
+              <div
+                className={clsx(
+                  "max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-[0_18px_35px_rgba(7,1,30,0.45)] transition",
                   message.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-default-200 dark:bg-default-300"
-                }`}
+                    ? "bg-gradient-to-r from-[#ff4bd8]/80 to-[#7b5dff]/85 text-white"
+                    : "border border-white/12 bg-white/5 text-white/90"
+                )}
               >
-                <CardBody className="p-3">
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  {message.timestamp && (
-                    <p className={`text-xs mt-1 opacity-70`}>
-                      {message.timestamp.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  )}
-                </CardBody>
-              </Card>
+                <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                {message.timestamp && (
+                  <p className="mt-2 text-[10px] uppercase tracking-[0.35em] text-white/60">
+                    {message.timestamp.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                )}
+              </div>
             </div>
           ))}
           {isLoading && (
             <div className="flex justify-start">
-              <Card className="bg-default-200 dark:bg-default-300">
-                <CardBody className="p-3">
-                  <div className="flex items-center gap-2">
-                    <Spinner size="sm" />
-                    <span className="text-sm text-default-600">Thinking...</span>
-                  </div>
-                </CardBody>
-              </Card>
+              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white/70">
+                <Spinner size="sm" color="secondary" />
+                <span className="text-sm">GiftTune.ai pisze...</span>
+              </div>
             </div>
           )}
           <div ref={messagesEndRef} />
@@ -142,7 +133,9 @@ export function ChatStep({
       </ScrollShadow>
 
       {/* Input Area */}
-      <div className="flex gap-2">
+      <div className="space-y-2">
+        <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Twoja wiadomość</p>
+        <div className="flex gap-3">
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -151,34 +144,40 @@ export function ChatStep({
           variant="bordered"
           disabled={isLoading}
           classNames={{
-            input: "pr-2",
+            base: "flex-1",
+            inputWrapper:
+              "bg-white/5 border border-white/15 rounded-2xl px-3 py-2 shadow-[0_15px_30px_rgba(5,0,20,0.4)] data-[disabled=true]:opacity-60",
+            input: "text-sm text-white placeholder:text-white/50 pr-2",
           }}
-          endContent={
-            <Button
-              size="sm"
-              color="primary"
-              onPress={handleSend}
-              isDisabled={!input.trim() || isLoading}
-              className="min-w-0 px-3"
-            >
-              Send
-            </Button>
-          }
         />
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={!input.trim() || isLoading}
+          className="neon-button px-6 py-3 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Wyślij
+        </button>
+        </div>
       </div>
 
       {/* Navigation */}
-      <div className="flex gap-3 justify-end pt-2 border-t border-default-200">
-        <Button variant="light" onPress={onBack}>
-          Back
-        </Button>
-        <Button
-          color="primary"
-          onPress={onComplete}
-          isDisabled={chatHistory.length < 2}
+      <div className="flex gap-3 justify-end border-t border-white/10 pt-4">
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded-full border border-white/20 px-5 py-2 text-sm text-white/80 transition hover:border-white/50"
+        >
+          Wstecz
+        </button>
+        <button
+          type="button"
+          onClick={onComplete}
+          disabled={chatHistory.length < 2}
+          className="neon-button px-6 py-3 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Next: Video Editor
-        </Button>
+        </button>
       </div>
     </div>
   );

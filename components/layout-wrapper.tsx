@@ -29,7 +29,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
       <div
         className={clsx(
           "transition-all duration-300 ease-in-out",
-          "md:ml-80", // Always add left margin on desktop since sidebar is always visible
+          "md:ml-[18rem]", // Shift content to clear the slimmer sidebar + add breathing room
           "pt-16" // Add top padding to account for fixed navbar
         )}
       >

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import {
@@ -17,9 +17,17 @@ import { VideoEditorStep } from "@/components/video-editor-step";
 
 type Step = "form" | "chat" | "video";
 
+const steps: Step[] = ["form", "chat", "video"];
+
 export default function CreateProjectPage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<Step>("form");
+  const searchParams = useSearchParams();
+
+  const initialStepParam = searchParams?.get("step") as Step | null;
+  const initialStep: Step =
+    initialStepParam && steps.includes(initialStepParam) ? initialStepParam : "form";
+
+  const [currentStep, setCurrentStep] = useState<Step>(initialStep);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -28,7 +36,6 @@ export default function CreateProjectPage() {
   const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [videoData, setVideoData] = useState<any>(null);
 
-  const steps: Step[] = ["form", "chat", "video"];
   const stepLabels = {
     form: "Project Details",
     chat: "AI Chat",

@@ -1,13 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerBody,
-  DrawerFooter,
-} from "@heroui/drawer";
+import { Drawer, DrawerContent } from "@heroui/drawer";
 import { Button } from "@heroui/button";
 import { ScrollShadow } from "@heroui/scroll-shadow";
 import { Link } from "@heroui/link";
@@ -59,84 +53,102 @@ const projectHistory: HistoryItem[] = [
   },
 ];
 
-
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   isMobile?: boolean;
 }
 
+const typeMeta = {
+  feature: {
+    label: "Feature",
+    badge: "border-pink-400/40 bg-pink-500/10 text-pink-100",
+  },
+  fix: {
+    label: "Fix",
+    badge: "border-emerald-400/40 bg-emerald-500/10 text-emerald-100",
+  },
+  update: {
+    label: "Update",
+    badge: "border-sky-400/40 bg-sky-500/10 text-sky-100",
+  },
+  refactor: {
+    label: "Refactor",
+    badge: "border-amber-400/40 bg-amber-500/10 text-amber-100",
+  },
+} satisfies Record<HistoryItem["type"], { label: string; badge: string }>;
+
+const formatDate = (date: string) =>
+  new Date(date).toLocaleDateString("pl-PL", {
+    day: "numeric",
+    month: "short",
+  });
+
 export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onClose,
   isMobile = false,
 }) => {
-  const content = (
-    <>
-      <DrawerHeader className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold">Project History</h2>
-        <p className="text-small text-default-500">
-          Timeline of project milestones and updates
+const renderPanel = (withClose = false) => (
+    <div className="neon-panel neon-panel--muted flex h-full flex-col gap-5 rounded-[26px] border border-white/15 bg-[#050017]/95 p-5 shadow-[0_35px_120px_rgba(84,18,140,0.35)]">
+      <div className="space-y-2">
+        <p className="text-[11px] uppercase tracking-[0.4em] text-white/55">
+          Historia
         </p>
-      </DrawerHeader>
-      <DrawerBody>
-        <ScrollShadow className="max-h-[calc(100vh-200px)]">
-          <div className="flex flex-col gap-2">
-            {projectHistory.map((item) => (
+        <h2 className="text-2xl font-semibold text-white">Project History</h2>
+        <p className="text-sm text-white/70">
+          Najważniejsze etapy rozwoju GiftTune.ai
+        </p>
+      </div>
+
+      <ScrollShadow className="flex-1" dir="rtl">
+        <div className="flex flex-col gap-3 pl-2" dir="ltr">
+          {projectHistory.map((item) => {
+            const meta = typeMeta[item.type];
+            return (
               <Link
                 key={item.id}
                 as={NextLink}
                 href={`/project/${item.id}`}
-                className="block p-2 rounded-lg hover:bg-default-100 transition-colors"
-                onPress={onClose}
+                className="group flex flex-col gap-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-white/80 transition hover:border-white/25 hover:bg-white/10"
+                onPress={withClose ? onClose : undefined}
               >
-                <span className="text-sm">{item.title}</span>
+                <p className="text-xs uppercase tracking-[0.35em] text-white/45">
+                  {formatDate(item.date)}
+                </p>
+                <p className="text-sm font-semibold text-white">{item.title}</p>
+                <p className="text-xs text-white/60">{item.description}</p>
               </Link>
-            ))}
-          </div>
-        </ScrollShadow>
-      </DrawerBody>
-      <DrawerFooter>
-        <Button color="default" variant="light" onPress={onClose}>
-          Close
+            );
+          })}
+        </div>
+      </ScrollShadow>
+
+      {withClose && (
+        <Button
+          variant="light"
+          className="self-end rounded-full border border-white/20 bg-white/5 text-white"
+          onPress={onClose}
+        >
+          Zamknij
         </Button>
-      </DrawerFooter>
-    </>
+      )}
+    </div>
   );
 
   if (isMobile) {
     return (
       <Drawer isOpen={isOpen} onClose={onClose} placement="left">
-        <DrawerContent>{content}</DrawerContent>
+        <DrawerContent className="bg-[#03000f]/90 p-4">
+          {renderPanel(true)}
+        </DrawerContent>
       </Drawer>
     );
   }
 
-  // Desktop: Always visible sidebar
   return (
-    <div className="hidden md:flex fixed left-0 top-16 h-[calc(100vh-4rem)] w-80 bg-content1 border-r border-divider z-30">
-      <div className="flex flex-col h-full w-full">
-        <div className="p-4 border-b border-divider">
-          <h2 className="text-xl font-semibold">Project History</h2>
-          <p className="text-small text-default-500">
-            Timeline of project milestones
-          </p>
-        </div>
-        <ScrollShadow className="flex-1 overflow-y-auto p-4">
-          <div className="flex flex-col gap-2">
-            {projectHistory.map((item) => (
-              <Link
-                key={item.id}
-                as={NextLink}
-                href={`/project/${item.id}`}
-                className="block p-2 rounded-lg hover:bg-default-100 transition-colors"
-              >
-                <span className="text-sm">{item.title}</span>
-              </Link>
-            ))}
-          </div>
-        </ScrollShadow>
-      </div>
+    <div className="fixed left-0 top-20 z-30 hidden h-[calc(100vh-5rem)] w-72 pr-4 pl-6 md:flex">
+      {renderPanel()}
     </div>
   );
 };

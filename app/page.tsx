@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import NextLink from "next/link";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
 
 type Option = {
@@ -20,16 +20,24 @@ const OCCASION_OPTIONS: Option[] = [
 ];
 
 const RELATION_OPTIONS: Option[] = [
-  { value: "partner", label: "❤️ Partner" },
-  { value: "friend", label: "🧸 Przyjaciel" },
-  { value: "parent", label: "👪 Rodzic" },
+  { value: "partner", label: "Partner / Partnerka", icon: "❤️" },
+  { value: "friend", label: "Przyjaciel / Przyjaciółka", icon: "🧸" },
+  { value: "parents", label: "Mama / Tata", icon: "👪" },
+  { value: "grandparents", label: "Babcia / Dziadek", icon: "👴" },
+  { value: "child", label: "Dziecko", icon: "👶" },
+  { value: "work", label: "Szef / Współpracownik", icon: "💼" },
+  { value: "custom", label: "Inna relacja", icon: "✏️", variant: "ghost" },
 ];
 
 const VIBE_OPTIONS: Option[] = [
-  { value: "rock", label: "🎸 Rock" },
-  { value: "pop", label: "🎤 Pop" },
-  { value: "rap", label: "🧢 Rap" },
-  { value: "other", label: "+ Inny" },
+  { value: "rock", label: "Rock / Metal", icon: "🎸" },
+  { value: "pop", label: "Pop / Radio Hit", icon: "🎤" },
+  { value: "rap", label: "Rap / Hip-hop", icon: "🧢" },
+  { value: "jazz", label: "Jazz / Blues", icon: "🎹" },
+  { value: "edm", label: "EDM / Klubowa", icon: "🎛️" },
+  { value: "classical", label: "Muzyka Filmowa / Klasyczna", icon: "🎻" },
+  { value: "country", label: "Country / Folk", icon: "🤠" },
+  { value: "custom", label: "Inny styl", icon: "➕", variant: "ghost" },
 ];
 
 interface OptionGroupProps {
@@ -39,12 +47,29 @@ interface OptionGroupProps {
   value: string;
   onChange: (value: string) => void;
   subtitle?: string;
+  customValueKey?: string;
+  customInputPlaceholder?: string;
+  customInputValue?: string;
+  onCustomInputChange?: (value: string) => void;
 }
 
-const OptionGroup = ({ index, title, subtitle, options, value, onChange }: OptionGroupProps) => (
+const OptionGroup = ({
+  index,
+  title,
+  subtitle,
+  options,
+  value,
+  onChange,
+  customValueKey,
+  customInputPlaceholder,
+  customInputValue,
+  onCustomInputChange,
+}: OptionGroupProps) => (
   <div className="space-y-4">
     <div>
-      <p className="neon-section-title">{index}. {title}</p>
+      <p className="neon-section-title">
+        {index}. {title}
+      </p>
       {subtitle && <p className="mt-1 text-sm text-white/70">{subtitle}</p>}
     </div>
     <div className="flex flex-wrap gap-3">
@@ -64,17 +89,30 @@ const OptionGroup = ({ index, title, subtitle, options, value, onChange }: Optio
         </button>
       ))}
     </div>
+    {value === customValueKey && customInputPlaceholder && onCustomInputChange && (
+      <input
+        type="text"
+        placeholder={customInputPlaceholder}
+        value={customInputValue}
+        onChange={(event) => onCustomInputChange(event.target.value)}
+        className="neon-input"
+      />
+    )}
   </div>
 );
 
 export default function Home() {
+  const router = useRouter();
   const [occasion, setOccasion] = useState("birthday");
+  const [occasionCustomDetail, setOccasionCustomDetail] = useState("");
   const [relation, setRelation] = useState("partner");
+  const [relationCustomDetail, setRelationCustomDetail] = useState("");
   const [vibe, setVibe] = useState("pop");
+  const [vibeCustomDetail, setVibeCustomDetail] = useState("");
   const [recipientName, setRecipientName] = useState("");
 
   return (
-    <section className="relative min-h-[calc(100vh-6rem)] w-full px-4 py-12 md:px-8 md:py-20">
+    <section className="relative min-h-[calc(100vh-6rem)] w-full px-4 py-12 md:px-8 md:py-4">
       <div className="mx-auto max-w-4xl">
         <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-[#0c0022]/85 via-[#050015]/92 to-[#080024]/90 p-6 sm:p-10 shadow-[0_45px_140px_rgba(90,9,146,0.55)]">
           <div className="absolute -top-32 -left-10 h-72 w-72 blurred-spot bg-[#ff4bd8]" />
@@ -103,6 +141,10 @@ export default function Home() {
                 options={OCCASION_OPTIONS}
                 value={occasion}
                 onChange={setOccasion}
+                customValueKey="other"
+                customInputPlaceholder="Opisz okazję, np. Wieczór panieński..."
+                customInputValue={occasionCustomDetail}
+                onCustomInputChange={setOccasionCustomDetail}
               />
 
               <div className="glow-divider" />
@@ -125,14 +167,24 @@ export default function Home() {
                         onClick={() => setRelation(option.value)}
                         className={clsx(
                           "option-pill",
+                          option.variant === "ghost" && "option-pill--ghost",
                           relation === option.value && "is-active",
                         )}
                       >
-                        <span className="text-lg">{option.icon}</span>
+                        {option.icon && <span className="text-lg">{option.icon}</span>}
                         <span>{option.label}</span>
                       </button>
                     ))}
                   </div>
+                  {relation === "custom" && (
+                    <input
+                      type="text"
+                      placeholder="Opisz relację, np. Kuzynka, Drużba..."
+                      value={relationCustomDetail}
+                      onChange={(event) => setRelationCustomDetail(event.target.value)}
+                      className="neon-input"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -141,14 +193,35 @@ export default function Home() {
               <OptionGroup
                 index={3}
                 title="Vibe muzyczny?"
+                subtitle="Jak ma brzmieć Wasz hit?"
                 options={VIBE_OPTIONS}
                 value={vibe}
                 onChange={setVibe}
+                customValueKey="custom"
+                customInputPlaceholder="Opisz styl, np. Szanta, Opera, Disco Polo..."
+                customInputValue={vibeCustomDetail}
+                onCustomInputChange={setVibeCustomDetail}
               />
 
-              <NextLink href="/project/create" className="neon-button w-full justify-center text-sm">
+              <button
+                type="button"
+                className="neon-button w-full justify-center text-sm"
+                onClick={() => {
+                  const payload = {
+                    occasion,
+                    occasionCustomDetail: occasion === "other" ? occasionCustomDetail : null,
+                    relation,
+                    relationCustomDetail: relation === "custom" ? relationCustomDetail : null,
+                    recipientName,
+                    vibe,
+                    vibeCustomDetail: vibe === "custom" ? vibeCustomDetail : null,
+                  };
+                  console.log("GiftTune selections:", payload);
+                  router.push("/project/create?step=chat");
+                }}
+              >
                 Dalej
-              </NextLink>
+              </button>
             </div>
           </div>
 
