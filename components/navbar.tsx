@@ -22,9 +22,9 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
   return (
     <HeroUINavbar
+      className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#030012]/85 backdrop-blur-2xl shadow-[0_15px_45px_rgba(98,22,255,0.4)]"
       maxWidth="full"
       position="static"
-      className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#030012]/85 backdrop-blur-2xl shadow-[0_15px_45px_rgba(98,22,255,0.4)]"
     >
       <NavbarContent className="w-full gap-6" justify="start">
         <NavbarBrand as="li" className="gap-3 max-w-fit">
@@ -46,8 +46,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
           {siteConfig.navItems.map((item) => (
             <NextLink
               key={item.href}
-              href={item.href}
               className="text-white/70 transition hover:text-white"
+              href={item.href}
             >
               {item.label}
             </NextLink>
@@ -56,16 +56,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
         <div className="ml-auto flex items-center gap-2">
           <Button
             isIconOnly
-            variant="light"
             aria-label="Project History"
-            onPress={onSidebarToggle}
             className="bg-white/10 text-white"
+            variant="light"
+            onPress={onSidebarToggle}
           >
             <HistoryIcon size={20} />
           </Button>
           <NextLink
-            href="/"
             className="neon-button px-6 py-3 text-xs uppercase tracking-[0.2em] hidden md:inline-flex"
+            href="/"
           >
             Zacznij Tworzyć
           </NextLink>
@@ -79,17 +79,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
             <NavbarMenuItem key={`${item.href}-${index}`}>
               <Link
                 as={NextLink}
+                className="text-white/80 hover:text-white"
                 color="foreground"
                 href={item.href}
                 size="lg"
-                className="text-white/80 hover:text-white"
               >
                 {item.label}
               </Link>
             </NavbarMenuItem>
           ))}
           <NavbarMenuItem>
-            <NextLink href="/" className="neon-button w-full text-center">
+            <NextLink className="neon-button w-full text-center" href="/">
               Zacznij Tworzyć
             </NextLink>
           </NavbarMenuItem>

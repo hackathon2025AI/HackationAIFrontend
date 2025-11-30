@@ -1,25 +1,38 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
-import {
-  Select,
-  SelectItem,
-} from "@heroui/select";
+import { Select, SelectItem } from "@heroui/select";
 import { Progress } from "@heroui/progress";
 import { Chip } from "@heroui/chip";
+
 import { ChatStep } from "@/components/chat-step";
 import { MusicGenerationStep } from "@/components/music-generation-step";
 import { VideoEditorStep } from "@/components/video-editor-step";
+import { SummaryStep } from "@/components/summary-step";
 import { useProject } from "@/context/project-context";
 
-type Step = "form" | "chat" | "music" | "video";
+type Step = "form" | "chat" | "music" | "video" | "summary";
 
-const steps: Step[] = ["form", "chat", "music", "video"];
+const steps: Step[] = ["form", "chat", "music", "video", "summary"];
 
 export default function CreateProjectPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center text-sm text-white/70">
+          Ładujemy kreator projektu...
+        </div>
+      }
+    >
+      <CreateProjectContent />
+    </Suspense>
+  );
+}
+
+function CreateProjectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -27,7 +40,9 @@ export default function CreateProjectPage() {
 
   const initialStepParam = searchParams?.get("step") as Step | null;
   const initialStep: Step =
-    initialStepParam && steps.includes(initialStepParam) ? initialStepParam : "form";
+    initialStepParam && steps.includes(initialStepParam)
+      ? initialStepParam
+      : "form";
 
   const [currentStep, setCurrentStep] = useState<Step>(initialStep);
   const [hasVisitedForm, setHasVisitedForm] = useState(initialStep === "form");
@@ -36,6 +51,7 @@ export default function CreateProjectPage() {
     description: "",
     type: "feature" as "feature" | "fix" | "update" | "refactor",
   });
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
 
   // Derive chat and video from context
   const chatHistory = data.chat;
@@ -46,13 +62,15 @@ export default function CreateProjectPage() {
     chat: "GiftTune Chat",
     music: "Generowanie muzyki",
     video: "Tworzenie wideo",
+    summary: "Podsumowanie",
   };
   const currentStepIndex = steps.indexOf(currentStep);
   const stepProgressMap: Record<Step, number> = {
-    form: 15,
-    chat: 38,
-    music: 65,
-    video: 85,
+    form: 8,
+    chat: 30,
+    music: 58,
+    video: 82,
+    summary: 100,
   };
   const progress = stepProgressMap[currentStep];
 
@@ -85,30 +103,42 @@ export default function CreateProjectPage() {
     await new Promise((resolve) => setTimeout(resolve, 300));
   };
 
-  const handleVideoComplete = async () => {
-    // Create project with all data
-    const newId = Date.now().toString();
-    const projectData = {
-      id: newId,
-      ...formData,
-      chatHistory,
-      videoData,
-      date: new Date().toISOString().split("T")[0],
-    };
+  const handleVideoComplete = () => {
+    setCurrentStep("summary");
+  };
 
-    // Simulate API call to our future video maker service
-    await sendVideoMakerRequest(projectData);
+  const handleCreateProject = async () => {
+    if (isCreatingProject) return;
+    setIsCreatingProject(true);
 
-    // Store in localStorage (in a real app, this would be saved to a database)
-    if (typeof window !== "undefined") {
-      const storedProjects = localStorage.getItem("projects");
-      const projects = storedProjects ? JSON.parse(storedProjects) : {};
-      projects[newId] = projectData;
-      localStorage.setItem("projects", JSON.stringify(projects));
+    try {
+      // Create project with all data
+      const newId = Date.now().toString();
+      const projectData = {
+        id: newId,
+        ...formData,
+        chatHistory,
+        videoData,
+        date: new Date().toISOString().split("T")[0],
+      };
+
+      // Simulate API call to our future video maker service
+      await sendVideoMakerRequest(projectData);
+
+      // Store in localStorage (in a real app, this would be saved to a database)
+      if (typeof window !== "undefined") {
+        const storedProjects = localStorage.getItem("projects");
+        const projects = storedProjects ? JSON.parse(storedProjects) : {};
+
+        projects[newId] = projectData;
+        localStorage.setItem("projects", JSON.stringify(projects));
+      }
+
+      // Redirect to the new project page
+      router.push(`/project/${newId}`);
+    } finally {
+      setIsCreatingProject(false);
     }
-    
-    // Redirect to the new project page
-    router.push(`/project/${newId}`);
   };
 
   const handleChange = (field: string, value: string) => {
@@ -119,6 +149,7 @@ export default function CreateProjectPage() {
     if (currentStep === "chat") {
       if (!hasVisitedForm) {
         router.push("/");
+
         return;
       }
       setCurrentStep("form");
@@ -126,6 +157,8 @@ export default function CreateProjectPage() {
       setCurrentStep("chat");
     } else if (currentStep === "video") {
       setCurrentStep("music");
+    } else if (currentStep === "summary") {
+      setCurrentStep("video");
     } else {
       router.back();
     }
@@ -153,10 +186,11 @@ export default function CreateProjectPage() {
                 GiftTune • Kreator projektu
               </p>
               <h1 className="text-3xl sm:text-4xl font-semibold text-white relative z-20">
-                Tworzymy prezent w czterech krokach
+                Tworzymy prezent w pięciu krokach
               </h1>
               <p className="text-white/70 max-w-3xl relative z-20">
-                Wypełnij krótki brief, porozmawiaj z naszym AI i dopracuj wideo, aby podarować bliskiej osobie personalizowany utwór.
+                Wypełnij krótki brief, porozmawiaj z naszym AI i dopracuj wideo,
+                aby podarować bliskiej osobie personalizowany utwór.
               </p>
             </div>
 
@@ -169,32 +203,44 @@ export default function CreateProjectPage() {
                   <span>Postęp projektu</span>
                 </div>
                 <div className="relative w-full">
-                  {/* Step names positioned at their percentages */}
-                  <div className="relative w-full mb-8 h-8">
+                  {/* Step names evenly distributed without absolute percentages */}
+                  <div className="mb-8 flex w-full justify-between gap-2">
                     {steps.map((step, index) => {
-                      const stepPercentage = stepProgressMap[step];
+                      const isActive = index === currentStepIndex;
+
                       return (
                         <div
                           key={step}
-                          className="absolute flex flex-col items-center"
-                          style={{ left: `${stepPercentage}%`, transform: 'translateX(-50%)' }}
+                          className="flex flex-1 flex-col items-center text-center"
                         >
                           <Chip
-                            color={index <= currentStepIndex ? "primary" : "default"}
-                            variant={index === currentStepIndex ? "solid" : "flat"}
-                            size="md"
                             className="mb-1"
+                            color={
+                              index <= currentStepIndex ? "primary" : "default"
+                            }
+                            size="md"
+                            variant={isActive ? "solid" : "flat"}
                           >
                             {index + 1}
                           </Chip>
-                          <span className={`text-md whitespace-nowrap ${index === currentStepIndex ? "text-white font-semibold" : "text-white/60"}`}>
+                          <span
+                            className={`text-[11px] leading-tight px-2 whitespace-normal break-words ${
+                              isActive
+                                ? "text-white font-semibold"
+                                : "text-white/60"
+                            }`}
+                          >
                             {stepLabels[step]}
                           </span>
                         </div>
                       );
                     })}
                   </div>
-                  <Progress value={progress} className="w-full" color="primary" />
+                  <Progress
+                    className="w-full"
+                    color="primary"
+                    value={progress}
+                  />
                 </div>
               </div>
 
@@ -203,51 +249,69 @@ export default function CreateProjectPage() {
                   <p className="text-xs uppercase tracking-[0.4em] text-white/55">
                     Etap {currentStepIndex + 1}
                   </p>
-                  <h2 className="text-2xl font-semibold text-white">{stepLabels[currentStep]}</h2>
+                  <h2 className="text-2xl font-semibold text-white">
+                    {stepLabels[currentStep]}
+                  </h2>
                 </div>
 
                 {currentStep === "form" && (
-                  <form onSubmit={handleFormSubmit} className="flex flex-col gap-5">
+                  <form
+                    className="flex flex-col gap-5"
+                    onSubmit={handleFormSubmit}
+                  >
                     <Input
-                      label="Tytuł projektu"
-                      placeholder="np. Urodzinowa niespodzianka dla Ani"
-                      value={formData.title}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("title", e.target.value)}
                       isRequired
-                      variant="bordered"
                       classNames={{
                         label: "text-white/70",
                         inputWrapper: "bg-white/5 border-white/20",
                         input: "text-white",
                       }}
+                      label="Tytuł projektu"
+                      placeholder="np. Urodzinowa niespodzianka dla Ani"
+                      value={formData.title}
+                      variant="bordered"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        handleChange("title", e.target.value)
+                      }
                     />
 
                     <div className="flex flex-col gap-2">
-                      <label className="text-sm text-white/70">Opis projektu</label>
+                      <label
+                        className="text-sm text-white/70"
+                        htmlFor="project-description"
+                      >
+                        Opis projektu
+                      </label>
                       <textarea
-                        placeholder="Podziel się szczegółami, które pomogą nam stworzyć wyjątkowy utwór..."
-                        value={formData.description}
-                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleChange("description", e.target.value)}
                         className="w-full rounded-2xl border border-white/15 bg-transparent px-4 py-3 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-pink-500/80"
+                        id="project-description"
+                        placeholder="Podziel się szczegółami, które pomogą nam stworzyć wyjątkowy utwór..."
                         rows={4}
+                        value={formData.description}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                          handleChange("description", e.target.value)
+                        }
                       />
                     </div>
 
                     <Select
+                      classNames={{
+                        trigger:
+                          "bg-white/5 border-white/20 rounded-2xl text-white",
+                        label: "text-white/70",
+                        value: "text-white",
+                        listboxWrapper:
+                          "bg-[#050017] border border-white/10 rounded-2xl",
+                        popoverContent: "bg-[#050017] border border-white/10",
+                      }}
                       label="Rodzaj zadania"
                       placeholder="Wybierz typ projektu"
                       selectedKeys={[formData.type]}
+                      variant="bordered"
                       onSelectionChange={(keys) => {
                         const selected = Array.from(keys)[0] as string;
+
                         handleChange("type", selected);
-                      }}
-                      variant="bordered"
-                      classNames={{
-                        trigger: "bg-white/5 border-white/20 rounded-2xl text-white",
-                        label: "text-white/70",
-                        value: "text-white",
-                        listboxWrapper: "bg-[#050017] border border-white/10 rounded-2xl",
-                        popoverContent: "bg-[#050017] border border-white/10",
                       }}
                     >
                       <SelectItem key="feature">Feature</SelectItem>
@@ -258,16 +322,16 @@ export default function CreateProjectPage() {
 
                     <div className="flex flex-wrap justify-end gap-3">
                       <Button
-                        variant="light"
                         className="rounded-full border border-white/20 text-white/80"
+                        variant="light"
                         onPress={() => router.back()}
                       >
                         Anuluj
                       </Button>
                       <Button
                         className="neon-button px-6 py-3 text-[11px]"
-                        type="submit"
                         disabled={!formData.title.trim()}
+                        type="submit"
                       >
                         Dalej: GiftTune Chat
                       </Button>
@@ -277,31 +341,42 @@ export default function CreateProjectPage() {
 
                 {currentStep === "chat" && (
                   <ChatStep
-                    formData={formData}
                     chatHistory={chatHistory}
+                    formData={formData}
+                    onBack={handleBack}
                     onChatUpdate={setChatHistory}
                     onComplete={handleChatComplete}
-                    onBack={handleBack}
                   />
                 )}
 
                 {currentStep === "music" && (
                   <MusicGenerationStep
-                    formData={formData}
                     chatHistory={chatHistory}
-                    onComplete={handleMusicComplete}
+                    formData={formData}
                     onBack={handleBack}
+                    onComplete={handleMusicComplete}
                   />
                 )}
 
                 {currentStep === "video" && (
                   <VideoEditorStep
-                    formData={formData}
                     chatHistory={chatHistory}
+                    formData={formData}
                     videoData={videoData}
-                    onVideoUpdate={setVideoData}
-                    onComplete={handleVideoComplete}
                     onBack={handleBack}
+                    onComplete={handleVideoComplete}
+                    onVideoUpdate={setVideoData}
+                  />
+                )}
+
+                {currentStep === "summary" && (
+                  <SummaryStep
+                    chatHistory={chatHistory}
+                    formData={formData}
+                    isCreating={isCreatingProject}
+                    videoData={videoData}
+                    onBack={handleBack}
+                    onCreate={handleCreateProject}
                   />
                 )}
               </div>

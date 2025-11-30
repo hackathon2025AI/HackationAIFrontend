@@ -2,7 +2,8 @@ export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
   name: "GiftTune.ai",
-  description: "AI songwriter that crafts neon-glow serenades for the people you love.",
+  description:
+    "AI songwriter that crafts neon-glow serenades for the people you love.",
   navItems: [
     {
       label: "Home",
@@ -13,7 +14,5 @@ export const siteConfig = {
       href: "/project/create",
     },
   ],
-  links: {
-    
-  },
+  links: {},
 };

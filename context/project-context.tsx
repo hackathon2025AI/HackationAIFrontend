@@ -128,7 +128,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
   const value = React.useMemo(
     () => ({ data, setStartData, setChatHistory, setVideoData, resetProject }),
-    [data, setStartData, setChatHistory, setVideoData, resetProject]
+    [data, setStartData, setChatHistory, setVideoData, resetProject],
   );
 
   return (
@@ -138,9 +138,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
 export function useProject() {
   const ctx = React.useContext(ProjectContext);
+
   if (!ctx) {
     throw new Error("useProject must be used within a ProjectProvider");
   }
+
   return ctx;
 }
-

@@ -83,10 +83,7 @@ const formatDate = (date: string) =>
     month: "short",
   });
 
-export const Sidebar: React.FC<SidebarProps> = ({
-  isOpen,
-  onClose,
-}) => {
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const renderPanel = () => (
     <div className="neon-panel neon-panel--muted flex h-full flex-col gap-5 rounded-[26px] border border-white/15 bg-[#050017]/95 p-5 shadow-[0_35px_120px_rgba(84,18,140,0.35)]">
       <div className="space-y-2">
@@ -103,12 +100,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex flex-col gap-3 pl-2" dir="ltr">
           {projectHistory.map((item) => {
             const meta = typeMeta[item.type];
+
             return (
               <Link
                 key={item.id}
                 as={NextLink}
-                href={`/project/${item.id}`}
                 className="group flex flex-col gap-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-white/80 transition hover:border-white/25 hover:bg-white/10 card-content"
+                href={`/project/${item.id}`}
                 onPress={onClose}
               >
                 <p className="text-xs uppercase tracking-[0.35em] text-white/45">
@@ -123,8 +121,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </ScrollShadow>
 
       <Button
-        variant="light"
         className="self-end rounded-full border border-white/20 bg-white/5 text-white"
+        variant="light"
         onPress={onClose}
       >
         Zamknij
@@ -134,12 +132,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <Drawer
-      isOpen={isOpen}
-      onClose={onClose}
-      placement="right"
       classNames={{
         base: "bg-transparent",
       }}
+      isOpen={isOpen}
+      placement="right"
+      onClose={onClose}
     >
       <DrawerContent className="bg-[#03000f]/90 p-4">
         {renderPanel()}
@@ -147,4 +145,3 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </Drawer>
   );
 };
-

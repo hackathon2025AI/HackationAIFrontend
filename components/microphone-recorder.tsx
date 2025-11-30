@@ -11,10 +11,15 @@ type EncoderStatus = "idle" | "loading" | "ready" | "error";
 
 interface MicrophoneRecorderProps {
   className?: string;
-  onRecordingReady?: (payload: { blob: Blob; url: string; fileName: string }) => void;
+  onRecordingReady?: (payload: {
+    blob: Blob;
+    url: string;
+    fileName: string;
+  }) => void;
 }
 
-type LameModule = typeof import("lamejs");
+type LameModule = typeof import("@breezystack/lamejs");
+type MediaRecorderErrorEvent = Event & { error?: DOMException };
 
 const getSupportedMimeType = () => {
   if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
@@ -39,10 +44,13 @@ const getSupportedMimeType = () => {
 
 const convertFloat32ToInt16 = (input: Float32Array) => {
   const output = new Int16Array(input.length);
+
   for (let i = 0; i < input.length; i += 1) {
     const clamped = Math.max(-1, Math.min(1, input[i]));
+
     output[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
   }
+
   return output;
 };
 
@@ -72,6 +80,7 @@ export const MicrophoneRecorder = ({
   useEffect(() => {
     if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
       setRecorderSupported(false);
+
       return;
     }
     setMimeType(getSupportedMimeType());
@@ -94,9 +103,11 @@ export const MicrophoneRecorder = ({
 
     setEncoderStatus("loading");
     try {
-      const lameModule = await import("lamejs");
+      const lameModule = await import("@breezystack/lamejs");
+
       lameModuleRef.current = lameModule;
       setEncoderStatus("ready");
+
       return lameModule;
     } catch (encoderError) {
       console.error("Failed to load MP3 encoder", encoderError);
@@ -109,6 +120,7 @@ export const MicrophoneRecorder = ({
     async (blob: Blob) => {
       const lameModule = await ensureEncoderModule();
       const { Mp3Encoder } = lameModule;
+
       if (!Mp3Encoder) {
         throw new Error("MP3 encoder unavailable");
       }
@@ -116,7 +128,12 @@ export const MicrophoneRecorder = ({
       const buffer = await blob.arrayBuffer();
       const AudioContextClass =
         typeof window !== "undefined"
-          ? window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+          ? window.AudioContext ||
+            (
+              window as typeof window & {
+                webkitAudioContext?: typeof AudioContext;
+              }
+            ).webkitAudioContext
           : null;
 
       if (!AudioContextClass) {
@@ -125,6 +142,7 @@ export const MicrophoneRecorder = ({
 
       const audioContext = new AudioContextClass();
       let audioBuffer: AudioBuffer | null = null;
+
       try {
         audioBuffer = await audioContext.decodeAudioData(buffer.slice(0));
       } finally {
@@ -135,11 +153,18 @@ export const MicrophoneRecorder = ({
         throw new Error("Nie udało się odczytać nagrania.");
       }
 
-      const channelCount = Math.min(2, Math.max(1, audioBuffer.numberOfChannels));
+      const channelCount = Math.min(
+        2,
+        Math.max(1, audioBuffer.numberOfChannels),
+      );
       const leftChannel = convertFloat32ToInt16(audioBuffer.getChannelData(0));
       const rightChannel =
-        channelCount > 1 ? convertFloat32ToInt16(audioBuffer.getChannelData(1)) : null;
+        channelCount > 1
+          ? convertFloat32ToInt16(audioBuffer.getChannelData(1))
+          : null;
 
+      // Create encoder with 3 parameters (as per type definition)
+      // The encoder will automatically handle mono/stereo based on channelCount
       const encoder = new Mp3Encoder(channelCount, audioBuffer.sampleRate, 192);
       const blockSize = 1152;
       const mp3Chunks: Uint8Array[] = [];
@@ -148,6 +173,7 @@ export const MicrophoneRecorder = ({
         for (let i = 0; i < leftChannel.length; i += blockSize) {
           const chunk = leftChannel.subarray(i, i + blockSize);
           const mp3buf = encoder.encodeBuffer(chunk);
+
           if (mp3buf.length > 0) {
             mp3Chunks.push(mp3buf);
           }
@@ -157,6 +183,7 @@ export const MicrophoneRecorder = ({
           const leftChunk = leftChannel.subarray(i, i + blockSize);
           const rightChunk = rightChannel.subarray(i, i + blockSize);
           const mp3buf = encoder.encodeBuffer(leftChunk, rightChunk);
+
           if (mp3buf.length > 0) {
             mp3Chunks.push(mp3buf);
           }
@@ -164,13 +191,16 @@ export const MicrophoneRecorder = ({
       }
 
       const flushed = encoder.flush();
+
       if (flushed.length > 0) {
         mp3Chunks.push(flushed);
       }
 
       const blobParts = mp3Chunks.map((chunk) => {
         const bufferCopy = new ArrayBuffer(chunk.byteLength);
+
         new Uint8Array(bufferCopy).set(chunk);
+
         return bufferCopy;
       });
 
@@ -180,7 +210,11 @@ export const MicrophoneRecorder = ({
   );
 
   const handleStartRecording = useCallback(async () => {
-    if (!recorderSupported || status === "recording" || status === "processing") {
+    if (
+      !recorderSupported ||
+      status === "recording" ||
+      status === "processing"
+    ) {
       return;
     }
 
@@ -188,10 +222,15 @@ export const MicrophoneRecorder = ({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
       setPermission("granted");
       streamRef.current = stream;
 
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined,
+      );
+
       recorderRef.current = recorder;
       chunksRef.current = [];
 
@@ -201,8 +240,8 @@ export const MicrophoneRecorder = ({
         }
       };
 
-      recorder.onerror = (event) => {
-        console.error("MediaRecorder error:", event.error);
+      recorder.onerror = (event: MediaRecorderErrorEvent) => {
+        console.error("MediaRecorder error:", event.error ?? event);
         setError("Wystąpił problem z nagrywaniem audio.");
         setStatus("error");
         stopAndCleanupStream();
@@ -212,7 +251,10 @@ export const MicrophoneRecorder = ({
         recorderRef.current = null;
         stopAndCleanupStream();
 
-        const rawBlob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        const rawBlob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+
         chunksRef.current = [];
 
         setStatus("processing");
@@ -220,17 +262,24 @@ export const MicrophoneRecorder = ({
         try {
           const mp3Blob = await convertToMp3(rawBlob);
           const finalUrl = URL.createObjectURL(mp3Blob);
+
           setMp3Url((previous) => {
             if (previous) {
               URL.revokeObjectURL(previous);
             }
+
             return finalUrl;
           });
 
           const generatedFileName = `gifttune-voice-${Date.now()}.mp3`;
+
           setFileName(generatedFileName);
           setStatus("ready");
-          onRecordingReady?.({ blob: mp3Blob, url: finalUrl, fileName: generatedFileName });
+          onRecordingReady?.({
+            blob: mp3Blob,
+            url: finalUrl,
+            fileName: generatedFileName,
+          });
         } catch (conversionError) {
           console.error("MP3 conversion failed:", conversionError);
           setError("Nie udało się przekonwertować nagrania na MP3.");
@@ -250,7 +299,14 @@ export const MicrophoneRecorder = ({
       }
       setStatus("error");
     }
-  }, [convertToMp3, mimeType, onRecordingReady, recorderSupported, status, stopAndCleanupStream]);
+  }, [
+    convertToMp3,
+    mimeType,
+    onRecordingReady,
+    recorderSupported,
+    status,
+    stopAndCleanupStream,
+  ]);
 
   const handleStopRecording = useCallback(() => {
     if (status !== "recording" || !recorderRef.current) {
@@ -294,14 +350,16 @@ export const MicrophoneRecorder = ({
           Nagraj dedykację
         </p>
         <p className="text-xs text-white/60">
-          Złap mikrofon i nagraj krótką wiadomość. Po zatrzymaniu zapiszemy ją jako plik MP3.
+          Złap mikrofon i nagraj krótką wiadomość. Po zatrzymaniu zapiszemy ją
+          jako plik MP3.
         </p>
       </div>
 
       {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
       {permission === "denied" && (
         <p className="mt-3 text-xs text-yellow-300">
-          Włącz dostęp do mikrofonu w ustawieniach przeglądarki, aby nagrywać dźwięk.
+          Włącz dostęp do mikrofonu w ustawieniach przeglądarki, aby nagrywać
+          dźwięk.
         </p>
       )}
       {encoderStatus === "loading" && (
@@ -312,23 +370,31 @@ export const MicrophoneRecorder = ({
 
       <div className="mt-5 flex flex-wrap gap-3">
         <Button
-          color={status === "recording" ? "danger" : "secondary"}
           className="min-w-[160px]"
-          onPress={status === "recording" ? handleStopRecording : handleStartRecording}
+          color={status === "recording" ? "danger" : "secondary"}
           isDisabled={status === "processing"}
+          onPress={
+            status === "recording" ? handleStopRecording : handleStartRecording
+          }
         >
-          {status === "recording" ? "Zatrzymaj nagrywanie" : "Rozpocznij nagrywanie"}
+          {status === "recording"
+            ? "Zatrzymaj nagrywanie"
+            : "Rozpocznij nagrywanie"}
         </Button>
 
-        <Button variant="light" onPress={handleReset} isDisabled={status === "recording"}>
+        <Button
+          isDisabled={status === "recording"}
+          variant="light"
+          onPress={handleReset}
+        >
           Reset
         </Button>
 
         {mp3Url && (
           <a
-            href={mp3Url}
-            download={fileName}
             className="inline-flex items-center rounded-full border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 transition hover:text-white"
+            download={fileName}
+            href={mp3Url}
           >
             Pobierz MP3
           </a>
@@ -345,7 +411,7 @@ export const MicrophoneRecorder = ({
 
         {status === "processing" && (
           <div className="flex items-center gap-3 text-sm text-white/70">
-            <Spinner size="sm" color="secondary" />
+            <Spinner color="secondary" size="sm" />
             Konwertujemy nagranie do MP3...
           </div>
         )}
@@ -354,17 +420,24 @@ export const MicrophoneRecorder = ({
           <div className="space-y-3 text-sm text-white/80">
             <p>Gotowe! Odsłuchaj lub pobierz swój plik MP3.</p>
             <audio controls className="w-full" src={mp3Url}>
+              <track
+                default
+                kind="captions"
+                label="Transkrypcja"
+                src="data:text/vtt,WEBVTT"
+                srcLang="pl"
+              />
               Twoja przeglądarka nie obsługuje odtwarzacza audio.
             </audio>
           </div>
         )}
 
         {!mp3Url && status !== "recording" && status !== "processing" && (
-          <p className="text-sm text-white/60">Nagranie pojawi się tutaj po zakończeniu.</p>
+          <p className="text-sm text-white/60">
+            Nagranie pojawi się tutaj po zakończeniu.
+          </p>
         )}
       </div>
     </div>
   );
 };
-
-

@@ -7,9 +7,9 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Tabs, Tab } from "@heroui/tabs";
 import { ScrollShadow } from "@heroui/scroll-shadow";
-import { title, subtitle } from "@/components/primitives";
-import { Link } from "@heroui/link";
 import NextLink from "next/link";
+
+import { title, subtitle } from "@/components/primitives";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -88,17 +88,20 @@ export default function ProjectPage({
 }) {
   const router = useRouter();
   const { id } = use(params);
-  
+
   // Try to get project from localStorage first, then fall back to mock data
   let project: Project | undefined;
+
   if (typeof window !== "undefined") {
     const storedProjects = localStorage.getItem("projects");
+
     if (storedProjects) {
       const projects = JSON.parse(storedProjects);
+
       project = projects[id];
     }
   }
-  
+
   // Fall back to mock data if not found in localStorage
   if (!project) {
     project = mockProjects[id];
@@ -109,9 +112,9 @@ export default function ProjectPage({
       <div className="flex flex-col items-center justify-center gap-4 py-16">
         <h1 className={title()}>Project Not Found</h1>
         <p className={subtitle()}>
-          The project you're looking for doesn't exist.
+          The project you&apos;re looking for doesn&apos;t exist.
         </p>
-        <Button as={NextLink} href="/" color="primary">
+        <Button as={NextLink} color="primary" href="/">
           Go Home
         </Button>
       </div>
@@ -124,12 +127,13 @@ export default function ProjectPage({
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className={title()}>{project.title}</h1>
-            <Chip color={getTypeColor(project.type)} variant="flat" size="sm">
+            <Chip color={getTypeColor(project.type)} size="sm" variant="flat">
               {project.type}
             </Chip>
           </div>
           <p className="text-default-500 text-sm">
-            Created on {new Date(project.date).toLocaleDateString("en-US", {
+            Created on{" "}
+            {new Date(project.date).toLocaleDateString("en-US", {
               year: "numeric",
               month: "long",
               day: "numeric",
@@ -138,8 +142,8 @@ export default function ProjectPage({
         </div>
         <Button
           as={NextLink}
-          href="/project/create"
           color="primary"
+          href="/project/create"
           variant="flat"
         >
           Create New Project
@@ -164,7 +168,9 @@ export default function ProjectPage({
               <Tab key="info" title="Information">
                 <div className="flex flex-col gap-3 py-4">
                   <div>
-                    <span className="text-default-500 text-sm">Project ID:</span>
+                    <span className="text-default-500 text-sm">
+                      Project ID:
+                    </span>
                     <p className="font-mono text-sm">{project.id}</p>
                   </div>
                   <div>
@@ -195,10 +201,14 @@ export default function ProjectPage({
                             }`}
                           >
                             <CardBody className="p-3 card-content">
-                              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                              <p className="text-sm whitespace-pre-wrap">
+                                {message.content}
+                              </p>
                               {message.timestamp && (
                                 <p className={`text-xs mt-1 opacity-70`}>
-                                  {new Date(message.timestamp).toLocaleTimeString([], {
+                                  {new Date(
+                                    message.timestamp,
+                                  ).toLocaleTimeString([], {
                                     hour: "2-digit",
                                     minute: "2-digit",
                                   })}
@@ -217,19 +227,27 @@ export default function ProjectPage({
                 <Tab key="video" title="Video Settings">
                   <div className="flex flex-col gap-3 py-4">
                     <div>
-                      <span className="text-default-500 text-sm">Duration:</span>
+                      <span className="text-default-500 text-sm">
+                        Duration:
+                      </span>
                       <p>{project.videoData.duration}s</p>
                     </div>
                     <div>
-                      <span className="text-default-500 text-sm">Resolution:</span>
+                      <span className="text-default-500 text-sm">
+                        Resolution:
+                      </span>
                       <p>{project.videoData.resolution}</p>
                     </div>
                     <div>
-                      <span className="text-default-500 text-sm">Frame Rate:</span>
+                      <span className="text-default-500 text-sm">
+                        Frame Rate:
+                      </span>
                       <p>{project.videoData.frameRate} fps</p>
                     </div>
                     <div>
-                      <span className="text-default-500 text-sm">Aspect Ratio:</span>
+                      <span className="text-default-500 text-sm">
+                        Aspect Ratio:
+                      </span>
                       <p>{project.videoData.aspectRatio}</p>
                     </div>
                   </div>
@@ -268,16 +286,10 @@ export default function ProjectPage({
         <Button variant="light" onPress={() => router.back()}>
           Back
         </Button>
-        <Button
-          as={NextLink}
-          href="/"
-          color="primary"
-          variant="flat"
-        >
+        <Button as={NextLink} color="primary" href="/" variant="flat">
           Home
         </Button>
       </div>
     </div>
   );
 }
-

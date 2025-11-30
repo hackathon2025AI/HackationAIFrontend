@@ -55,7 +55,7 @@
     "clsx": "2.1.1",
     "framer-motion": "11.18.2",
     "intl-messageformat": "10.7.16",
-    "lamejs": "^1.2.0",
+    "@breezystack/lamejs": "^1.2.7",
     "next": "15.3.1",
     "next-themes": "0.4.6",
     "react": "18.3.1",
@@ -63,6 +63,7 @@
     "react-markdown": "^10.1.0"
   },
   "devDependencies": {
+    "@eslint/compat": "^1.2.5",
     "@next/eslint-plugin-next": "15.3.4",
     "@react-types/shared": "3.32.1",
     "@tailwindcss/postcss": "4.1.11",

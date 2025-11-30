@@ -1,11 +1,10 @@
 import "@/styles/globals.css";
 import { Metadata, Viewport } from "next";
-import { Link } from "@heroui/link";
 import clsx from "clsx";
 
 import { Providers } from "./providers";
-import { LayoutWrapper } from "@/components/layout-wrapper";
 
+import { LayoutWrapper } from "@/components/layout-wrapper";
 import { siteConfig } from "@/config/site";
 import { fontSans } from "@/config/fonts";
 

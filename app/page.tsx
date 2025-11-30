@@ -1,11 +1,13 @@
 "use client";
 
+import type { ChatMessage } from "@/context/project-context";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Spinner } from "@heroui/spinner";
 import { useMutation } from "@tanstack/react-query";
-import type { ChatMessage } from "@/context/project-context";
+
 import { useProject } from "@/context/project-context";
 
 type Option = {
@@ -96,28 +98,30 @@ const OptionGroup = ({
       {options.map((option) => (
         <button
           key={option.value}
-          type="button"
-          onClick={() => onChange(option.value)}
           className={clsx(
             "option-pill",
             option.variant === "ghost" && "option-pill--ghost",
             value === option.value && "is-active",
           )}
+          type="button"
+          onClick={() => onChange(option.value)}
         >
           {option.icon && <span className="text-lg">{option.icon}</span>}
           <span>{option.label}</span>
         </button>
       ))}
     </div>
-    {value === customValueKey && customInputPlaceholder && onCustomInputChange && (
-      <input
-        type="text"
-        placeholder={customInputPlaceholder}
-        value={customInputValue}
-        onChange={(event) => onCustomInputChange(event.target.value)}
-        className="neon-input"
-      />
-    )}
+    {value === customValueKey &&
+      customInputPlaceholder &&
+      onCustomInputChange && (
+        <input
+          className="neon-input"
+          placeholder={customInputPlaceholder}
+          type="text"
+          value={customInputValue}
+          onChange={(event) => onCustomInputChange(event.target.value)}
+        />
+      )}
   </div>
 );
 
@@ -135,14 +139,21 @@ export default function Home() {
   const recipientName = data.start.recipientName;
 
   const setOccasion = (v: string) => setStartData({ occasion: v });
-  const setOccasionCustomDetail = (v: string) => setStartData({ occasionCustomDetail: v || null });
+  const setOccasionCustomDetail = (v: string) =>
+    setStartData({ occasionCustomDetail: v || null });
   const setRelation = (v: string) => setStartData({ relation: v });
-  const setRelationCustomDetail = (v: string) => setStartData({ relationCustomDetail: v || null });
+  const setRelationCustomDetail = (v: string) =>
+    setStartData({ relationCustomDetail: v || null });
   const setVibe = (v: string) => setStartData({ vibe: v });
-  const setVibeCustomDetail = (v: string) => setStartData({ vibeCustomDetail: v || null });
+  const setVibeCustomDetail = (v: string) =>
+    setStartData({ vibeCustomDetail: v || null });
   const setRecipientName = (v: string) => setStartData({ recipientName: v });
 
-  const createSongMutation = useMutation<SongStartResponse, Error, SongStartPayload>({
+  const createSongMutation = useMutation<
+    SongStartResponse,
+    Error,
+    SongStartPayload
+  >({
     mutationFn: async (payload) => {
       const response = await fetch("http://localhost:8080/songs/start", {
         method: "POST",
@@ -154,8 +165,10 @@ export default function Home() {
 
       if (!response.ok) {
         let message = "Nie udało się rozpocząć tworzenia utworu.";
+
         try {
           const errorData = await response.json();
+
           if (typeof errorData?.message === "string") {
             message = errorData.message;
           }
@@ -166,6 +179,7 @@ export default function Home() {
       }
 
       const responseBody: SongStartResponse = await response.json();
+
       return responseBody;
     },
     onSuccess: (responseBody, variables) => {
@@ -189,11 +203,14 @@ export default function Home() {
 
       const assistantMessage: ChatMessage = {
         role: "assistant",
-        content: responseBody.reply ?? "Mam gotową odpowiedź dotyczącą Twojego prezentu.",
+        content:
+          responseBody.reply ??
+          "Mam gotową odpowiedź dotyczącą Twojego prezentu.",
         timestamp: new Date(),
       };
 
       const conversation = [userMessage, assistantMessage];
+
       setChatHistory(conversation);
 
       if (typeof window !== "undefined") {
@@ -214,16 +231,21 @@ export default function Home() {
       router.push("/project/create?step=chat");
     },
     onError: (error: unknown) => {
-      setSubmissionError(error instanceof Error ? error.message : "Wystąpił nieznany błąd.");
+      setSubmissionError(
+        error instanceof Error ? error.message : "Wystąpił nieznany błąd.",
+      );
     },
   });
 
   const buildSongPayload = (): SongStartPayload => {
-    const normalizedOccasion = occasion === "other" ? occasionCustomDetail || occasion : occasion;
-    const normalizedRelation = relation === "custom" ? relationCustomDetail || relation : relation;
+    const normalizedOccasion =
+      occasion === "other" ? occasionCustomDetail || occasion : occasion;
+    const normalizedRelation =
+      relation === "custom" ? relationCustomDetail || relation : relation;
     const normalizedVibe = vibe === "custom" ? vibeCustomDetail || vibe : vibe;
 
     const notes: string[] = [];
+
     if (recipientName) {
       notes.push(`Recipient: ${recipientName}`);
     }
@@ -257,8 +279,12 @@ export default function Home() {
 
           <div className="flex flex-col gap-6 relative z-10">
             <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.45em] text-white/60">
-              <span className="rounded-full border border-white/30 px-4 py-1 text-white/80">GiftTune</span>
-              <span className="rounded-full border border-pink-400/60 px-3 py-1 text-pink-200">AI</span>
+              <span className="rounded-full border border-white/30 px-4 py-1 text-white/80">
+                GiftTune
+              </span>
+              <span className="rounded-full border border-pink-400/60 px-3 py-1 text-pink-200">
+                AI
+              </span>
               <span>Personalizowane utwory</span>
             </div>
 
@@ -267,20 +293,21 @@ export default function Home() {
                 Stwórz Hit dla Bliskiej Osoby
               </h1>
               <p className="text-lg text-white/75 max-w-2xl">
-                Wybierz okazję, dodaj imię i pozwól GiftTune.ai zaskoczyć Twoich najbliższych personalizowaną piosenką.
+                Wybierz okazję, dodaj imię i pozwól GiftTune.ai zaskoczyć Twoich
+                najbliższych personalizowaną piosenką.
               </p>
             </div>
 
             <div className="neon-panel flex flex-col gap-8">
               <OptionGroup
-                index={1}
-                title="Okazja?"
-                options={OCCASION_OPTIONS}
-                value={occasion}
-                onChange={setOccasion}
-                customValueKey="other"
                 customInputPlaceholder="Opisz okazję, np. Wieczór panieński..."
                 customInputValue={occasionCustomDetail}
+                customValueKey="other"
+                index={1}
+                options={OCCASION_OPTIONS}
+                title="Okazja?"
+                value={occasion}
+                onChange={setOccasion}
                 onCustomInputChange={setOccasionCustomDetail}
               />
 
@@ -290,36 +317,40 @@ export default function Home() {
                 <p className="neon-section-title">2. Dla kogo?</p>
                 <div className="flex flex-col gap-3">
                   <input
-                    type="text"
+                    className="neon-input"
                     placeholder="Wpisz imię..."
+                    type="text"
                     value={recipientName}
                     onChange={(event) => setRecipientName(event.target.value)}
-                    className="neon-input"
                   />
                   <div className="flex flex-wrap gap-3">
                     {RELATION_OPTIONS.map((option) => (
                       <button
                         key={option.value}
-                        type="button"
-                        onClick={() => setRelation(option.value)}
                         className={clsx(
                           "option-pill",
                           option.variant === "ghost" && "option-pill--ghost",
                           relation === option.value && "is-active",
                         )}
+                        type="button"
+                        onClick={() => setRelation(option.value)}
                       >
-                        {option.icon && <span className="text-lg">{option.icon}</span>}
+                        {option.icon && (
+                          <span className="text-lg">{option.icon}</span>
+                        )}
                         <span>{option.label}</span>
                       </button>
                     ))}
                   </div>
                   {relation === "custom" && (
                     <input
-                      type="text"
-                      placeholder="Opisz relację, np. Kuzynka, Drużba..."
-                      value={relationCustomDetail}
-                      onChange={(event) => setRelationCustomDetail(event.target.value)}
                       className="neon-input"
+                      placeholder="Opisz relację, np. Kuzynka, Drużba..."
+                      type="text"
+                      value={relationCustomDetail}
+                      onChange={(event) =>
+                        setRelationCustomDetail(event.target.value)
+                      }
                     />
                   )}
                 </div>
@@ -328,31 +359,29 @@ export default function Home() {
               <div className="glow-divider" />
 
               <OptionGroup
-                index={3}
-                title="Vibe muzyczny?"
-                subtitle="Jak ma brzmieć Wasz hit?"
-                options={VIBE_OPTIONS}
-                value={vibe}
-                onChange={setVibe}
-                customValueKey="custom"
                 customInputPlaceholder="Opisz styl, np. Szanta, Opera, Disco Polo..."
                 customInputValue={vibeCustomDetail}
+                customValueKey="custom"
+                index={3}
+                options={VIBE_OPTIONS}
+                subtitle="Jak ma brzmieć Wasz hit?"
+                title="Vibe muzyczny?"
+                value={vibe}
+                onChange={setVibe}
                 onCustomInputChange={setVibeCustomDetail}
               />
 
               <button
-                type="button"
                 className="neon-button w-full justify-center text-sm"
                 disabled={createSongMutation.isPending}
+                type="button"
                 onClick={() => createSongMutation.mutate(buildSongPayload())}
               >
                 {createSongMutation.isPending ? "Wysyłanie..." : "Dalej"}
               </button>
 
               {submissionError && (
-                <p className="text-sm text-red-300">
-                  {submissionError}
-                </p>
+                <p className="text-sm text-red-300">{submissionError}</p>
               )}
             </div>
           </div>
@@ -360,7 +389,13 @@ export default function Home() {
           <div className="absolute right-8 top-8 hidden sm:block">
             <div className="relative rounded-3xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold tracking-[0.6em] text-white">
               AI
-              <span className="pointer-events-none absolute inset-0 -z-10 blur-2xl" style={{ background: "radial-gradient(circle, rgba(255,75,216,0.45), transparent 60%)" }} />
+              <span
+                className="pointer-events-none absolute inset-0 -z-10 blur-2xl"
+                style={{
+                  background:
+                    "radial-gradient(circle, rgba(255,75,216,0.45), transparent 60%)",
+                }}
+              />
             </div>
           </div>
         </div>
@@ -369,9 +404,12 @@ export default function Home() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-3 rounded-3xl border border-white/10 bg-white/10 px-8 py-10 text-white shadow-2xl">
             <Spinner color="secondary" size="lg" />
-            <p className="text-sm uppercase tracking-[0.4em] text-white/70">Tworzymy zapytanie</p>
+            <p className="text-sm uppercase tracking-[0.4em] text-white/70">
+              Tworzymy zapytanie
+            </p>
             <p className="text-xs text-white/60 text-center">
-              Prosimy o chwilę cierpliwości. Przygotowujemy szczegóły Twojego utworu.
+              Prosimy o chwilę cierpliwości. Przygotowujemy szczegóły Twojego
+              utworu.
             </p>
           </div>
         </div>
