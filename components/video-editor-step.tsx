@@ -8,6 +8,7 @@ import type {
 
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
+import { Spinner } from "@heroui/spinner";
 
 interface VideoEditorStepProps {
   formData: {
@@ -40,6 +41,8 @@ const transitionOptions: TransitionType[] = [
 ];
 const IMAGE_DURATION = 4;
 const PREVIEW_TRANSITION_DURATION_MS = 900;
+const MOCK_VIDEO_PATH = encodeURI("/wynik.mp4");
+const MOCK_VIDEO_DELAY_MS = 4000;
 
 const createId = () => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -88,10 +91,10 @@ export function VideoEditorStep({
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [activePreviewIndex, setActivePreviewIndex] = useState(0);
   const [isDragActive, setIsDragActive] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const uploadInputId = "video-image-upload";
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewAnimationRef = useRef<number | null>(null);
+  const [isExportingVideo, setIsExportingVideo] = useState(false);
 
   const imagesRef = useRef(images);
 
@@ -112,13 +115,7 @@ export function VideoEditorStep({
   const updateVideoState = (
     updater: (prev: VideoSettings) => VideoSettings,
   ) => {
-    setVideoSettings((prev) => {
-      const updated = updater(prev);
-
-      onVideoUpdate(updated);
-
-      return updated;
-    });
+    setVideoSettings((prev) => updater(prev));
   };
 
   const syncLibraryFromImages = (list: ImageItem[]) => {
@@ -138,6 +135,16 @@ export function VideoEditorStep({
     }));
   };
 
+  const hasMountedRef = useRef(false);
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+
+      return;
+    }
+    onVideoUpdate(videoSettings);
+  }, [videoSettings, onVideoUpdate]);
+
   const handleFilesSelected = (files: FileList | null) => {
     if (!files) return;
     const freshImages: ImageItem[] = [];
@@ -156,8 +163,6 @@ export function VideoEditorStep({
     });
 
     if (!freshImages.length) {
-      setError("Dodaj przynajmniej jeden obraz w formacie JPG lub PNG.");
-
       return;
     }
 
@@ -165,7 +170,6 @@ export function VideoEditorStep({
 
     setImages(updatedImages);
     syncLibraryFromImages(updatedImages);
-    setError(null);
     setIsPreviewReady(false);
   };
 
@@ -210,13 +214,10 @@ export function VideoEditorStep({
 
   const generatePreview = () => {
     if (!images.length) {
-      setError("Dodaj obrazy, aby przygotować podgląd.");
-
       return;
     }
 
     setIsGeneratingPreview(true);
-    setError(null);
 
     const timelineItems = buildTimelineItems(images);
 
@@ -233,7 +234,27 @@ export function VideoEditorStep({
   };
 
   const isGenerateDisabled = !images.length || isGeneratingPreview;
-  const canComplete = isPreviewReady && images.length > 0;
+  const hasGeneratedVideo = Boolean(videoSettings.exportedVideoUrl);
+  const canComplete =
+    hasGeneratedVideo || (isPreviewReady && images.length > 0);
+  const videoDownloadUrl = videoSettings.exportedVideoUrl || "";
+  const previewVideoUrl = videoSettings.exportedVideoUrl || null;
+  const mockGenerateVideo = () => {
+    if (isExportingVideo) {
+      return;
+    }
+
+    setIsExportingVideo(true);
+
+    setTimeout(() => {
+      updateVideoState((prev) => ({
+        ...prev,
+        exportedVideoUrl: MOCK_VIDEO_PATH,
+        exportedVideoBlob: undefined,
+      }));
+      setIsExportingVideo(false);
+    }, MOCK_VIDEO_DELAY_MS);
+  };
 
   useEffect(() => {
     const canvas = previewCanvasRef.current;
@@ -285,7 +306,14 @@ export function VideoEditorStep({
         img.src = src;
       });
 
-    const drawImageToCanvas = (img: HTMLImageElement) => {
+    const drawImageToCanvas = (img?: HTMLImageElement | null) => {
+      if (!img || !img.width || !img.height) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        return;
+      }
       const { width, height } = canvas;
 
       ctx.clearRect(0, 0, width, height);
@@ -312,7 +340,16 @@ export function VideoEditorStep({
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, width, height);
 
-      const scaleImage = (img: HTMLImageElement) => {
+      const scaleImage = (img?: HTMLImageElement | null) => {
+        if (!img || !img.width || !img.height) {
+          return {
+            drawWidth: width,
+            drawHeight: height,
+            x: 0,
+            y: 0,
+            isEmpty: true,
+          };
+        }
         const scale = Math.max(width / img.width, height / img.height);
 
         return {
@@ -330,41 +367,49 @@ export function VideoEditorStep({
         case "fade":
         case "crossfade": {
           ctx.globalAlpha = 1 - progress;
-          ctx.drawImage(
-            img1,
-            img1Props.x,
-            img1Props.y,
-            img1Props.drawWidth,
-            img1Props.drawHeight,
-          );
+          if (!img1Props.isEmpty) {
+            ctx.drawImage(
+              img1 as HTMLImageElement,
+              img1Props.x,
+              img1Props.y,
+              img1Props.drawWidth,
+              img1Props.drawHeight,
+            );
+          }
           ctx.globalAlpha = progress;
-          ctx.drawImage(
-            img2,
-            img2Props.x,
-            img2Props.y,
-            img2Props.drawWidth,
-            img2Props.drawHeight,
-          );
+          if (!img2Props.isEmpty) {
+            ctx.drawImage(
+              img2 as HTMLImageElement,
+              img2Props.x,
+              img2Props.y,
+              img2Props.drawWidth,
+              img2Props.drawHeight,
+            );
+          }
           ctx.globalAlpha = 1;
           break;
         }
         case "slide": {
-          ctx.drawImage(
-            img1,
-            img1Props.x,
-            img1Props.y,
-            img1Props.drawWidth,
-            img1Props.drawHeight,
-          );
+          if (!img1Props.isEmpty) {
+            ctx.drawImage(
+              img1 as HTMLImageElement,
+              img1Props.x,
+              img1Props.y,
+              img1Props.drawWidth,
+              img1Props.drawHeight,
+            );
+          }
           ctx.save();
           ctx.translate(width * (1 - progress), 0);
-          ctx.drawImage(
-            img2,
-            img2Props.x,
-            img2Props.y,
-            img2Props.drawWidth,
-            img2Props.drawHeight,
-          );
+          if (!img2Props.isEmpty) {
+            ctx.drawImage(
+              img2 as HTMLImageElement,
+              img2Props.x,
+              img2Props.y,
+              img2Props.drawWidth,
+              img2Props.drawHeight,
+            );
+          }
           ctx.restore();
           break;
         }
@@ -376,60 +421,70 @@ export function VideoEditorStep({
           ctx.translate(width / 2, height / 2);
           ctx.scale(zoomOut, zoomOut);
           ctx.globalAlpha = 1 - progress;
-          ctx.drawImage(
-            img1,
-            img1Props.x - width / 2,
-            img1Props.y - height / 2,
-            img1Props.drawWidth,
-            img1Props.drawHeight,
-          );
+          if (!img1Props.isEmpty) {
+            ctx.drawImage(
+              img1 as HTMLImageElement,
+              img1Props.x - width / 2,
+              img1Props.y - height / 2,
+              img1Props.drawWidth,
+              img1Props.drawHeight,
+            );
+          }
           ctx.restore();
 
           ctx.save();
           ctx.translate(width / 2, height / 2);
           ctx.scale(zoomIn, zoomIn);
           ctx.globalAlpha = progress;
-          ctx.drawImage(
-            img2,
-            img2Props.x - width / 2,
-            img2Props.y - height / 2,
-            img2Props.drawWidth,
-            img2Props.drawHeight,
-          );
+          if (!img2Props.isEmpty) {
+            ctx.drawImage(
+              img2 as HTMLImageElement,
+              img2Props.x - width / 2,
+              img2Props.y - height / 2,
+              img2Props.drawWidth,
+              img2Props.drawHeight,
+            );
+          }
           ctx.restore();
           ctx.globalAlpha = 1;
           break;
         }
         case "wipe": {
-          ctx.drawImage(
-            img1,
-            img1Props.x,
-            img1Props.y,
-            img1Props.drawWidth,
-            img1Props.drawHeight,
-          );
+          if (!img1Props.isEmpty) {
+            ctx.drawImage(
+              img1 as HTMLImageElement,
+              img1Props.x,
+              img1Props.y,
+              img1Props.drawWidth,
+              img1Props.drawHeight,
+            );
+          }
           ctx.save();
           ctx.beginPath();
           ctx.rect(0, 0, width * progress, height);
           ctx.clip();
-          ctx.drawImage(
-            img2,
-            img2Props.x,
-            img2Props.y,
-            img2Props.drawWidth,
-            img2Props.drawHeight,
-          );
+          if (!img2Props.isEmpty) {
+            ctx.drawImage(
+              img2 as HTMLImageElement,
+              img2Props.x,
+              img2Props.y,
+              img2Props.drawWidth,
+              img2Props.drawHeight,
+            );
+          }
           ctx.restore();
           break;
         }
         default: {
-          ctx.drawImage(
-            img2,
-            img2Props.x,
-            img2Props.y,
-            img2Props.drawWidth,
-            img2Props.drawHeight,
-          );
+          if (!img2Props.isEmpty) {
+            ctx.drawImage(
+              img2 as HTMLImageElement,
+              img2Props.x,
+              img2Props.y,
+              img2Props.drawWidth,
+              img2Props.drawHeight,
+            );
+          }
           break;
         }
       }
@@ -438,7 +493,11 @@ export function VideoEditorStep({
     Promise.all(images.map((image) => loadImage(image.previewUrl)))
       .then((loadedImages) => {
         if (isCancelled) return;
+        if (!loadedImages.length) {
+          setIsPreviewReady(false);
 
+          return;
+        }
         const clipDurationMs = IMAGE_DURATION * 1000;
         const transitionDurationMs =
           transitionType === "none" ? 0 : PREVIEW_TRANSITION_DURATION_MS;
@@ -485,11 +544,7 @@ export function VideoEditorStep({
 
         animate(performance.now());
       })
-      .catch(() => {
-        if (!isCancelled) {
-          setError("Nie udało się załadować podglądu. Spróbuj ponownie.");
-        }
-      });
+      .catch(() => undefined);
 
     return () => {
       isCancelled = true;
@@ -560,11 +615,11 @@ export function VideoEditorStep({
                 {images.map((image, index) => (
                   <div
                     key={image.id}
-                    className="group relative overflow-hidden rounded-2xl border border-white/10 bg-black/30"
+                    className="group relative aspect-[4/3] overflow-hidden rounded-2xl border border-white/10 bg-black/30"
                   >
                     <img
                       alt={image.fileName ?? `Obraz ${index + 1}`}
-                      className="h-32 w-full object-cover transition duration-300 group-hover:scale-105"
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                       src={image.previewUrl}
                     />
                     <div className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-xs font-semibold text-white">
@@ -613,8 +668,25 @@ export function VideoEditorStep({
               Podgląd
             </p>
             <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-black/40 p-4">
-              <div className="relative h-48 w-full overflow-hidden rounded-xl bg-black/30">
-                {images.length ? (
+              <div className="relative h-64 w-full overflow-hidden rounded-xl bg-black/30 md:h-80">
+                {hasGeneratedVideo && previewVideoUrl ? (
+                  <video
+                    className="h-full w-full rounded-xl object-cover"
+                    controls
+                    loop
+                    muted
+                    playsInline
+                    src={previewVideoUrl}
+                  >
+                    <track
+                      default
+                      kind="captions"
+                      label="Podgląd wideo"
+                      src="data:text/vtt,WEBVTT"
+                      srcLang="pl"
+                    />
+                  </video>
+                ) : images.length ? (
                   <>
                     <canvas ref={previewCanvasRef} className="h-full w-full" />
                     {isPreviewReady && images.length > 1 && (
@@ -638,6 +710,14 @@ export function VideoEditorStep({
                     Dodaj obrazy aby zobaczyć podgląd
                   </div>
                 )}
+                {isExportingVideo && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70">
+                    <Spinner color="secondary" />
+                    <span className="text-sm text-white/70">
+                      Generujemy wideo...
+                    </span>
+                  </div>
+                )}
               </div>
 
               <button
@@ -651,8 +731,34 @@ export function VideoEditorStep({
                   : "Generuj podgląd"}
               </button>
 
-              {error && <p className="text-xs text-rose-300">{error}</p>}
-              {!error && !isPreviewReady && images.length > 0 && (
+              <button
+                className="neon-button w-full px-5 py-3 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={isExportingVideo}
+                type="button"
+                onClick={mockGenerateVideo}
+              >
+                {isExportingVideo ? "Generujemy wideo..." : "Generuj wideo"}
+              </button>
+
+              <a
+                className={clsx(
+                  "inline-flex w-full items-center justify-center rounded-full border px-5 py-3 text-[11px] uppercase tracking-[0.3em]",
+                  hasGeneratedVideo
+                    ? "border-emerald-400/70 text-emerald-200 hover:bg-emerald-400/10"
+                    : "cursor-not-allowed border-white/20 text-white/40",
+                )}
+                download="giftbeat-video.mp4"
+                href={hasGeneratedVideo ? videoDownloadUrl : undefined}
+                onClick={(event) => {
+                  if (!hasGeneratedVideo) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                Pobierz wideo
+              </a>
+
+              {!isPreviewReady && images.length > 0 && (
                 <p className="text-xs text-white/60">
                   Dodano materiały — wygeneruj podgląd, aby przejść dalej.
                 </p>
@@ -664,35 +770,6 @@ export function VideoEditorStep({
               )}
             </div>
           </section>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 card-content">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
-              Tytuł
-            </p>
-            <p className="mt-2 text-lg font-semibold text-white">
-              {formData.title || "Brak tytułu"}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 lg:col-span-2 card-content">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
-              Opis
-            </p>
-            <p className="mt-2 text-sm text-white/70 whitespace-pre-line">
-              {formData.description ||
-                "Brak opisu – możesz dodać go na wcześniejszym etapie."}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 card-content">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
-              Chat
-            </p>
-            <p className="mt-2 text-2xl font-semibold text-white">
-              {chatHistory.length}
-            </p>
-            <p className="text-xs text-white/60">wiadomości wymienione</p>
-          </div>
         </div>
       </div>
 
@@ -710,7 +787,7 @@ export function VideoEditorStep({
           disabled={!canComplete}
           type="button"
           onClick={() => {
-            console.log("[GiftTune] Creating project with video settings:", {
+            console.log("[GiftBeat] Creating project with video settings:", {
               formData,
               chatHistory,
               videoData: { ...videoSettings },
@@ -718,7 +795,7 @@ export function VideoEditorStep({
             onComplete();
           }}
         >
-          Summart
+          Podsumowanie
         </button>
       </div>
     </div>

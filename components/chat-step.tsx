@@ -6,7 +6,6 @@ import type { ChatMessage } from "@/context/project-context";
 
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { Input } from "@heroui/input";
 import { ScrollShadow } from "@heroui/scroll-shadow";
 import { Spinner } from "@heroui/spinner";
 import { useMutation } from "@tanstack/react-query";
@@ -74,6 +73,8 @@ export function ChatStep({
   onComplete,
   onBack,
 }: ChatStepProps) {
+  const LYRICS_STORAGE_KEY = "gifttune_lyrics";
+
   const [input, setInput] = useState("");
   const [lyricsDraft, setLyricsDraft] = useState<string>("");
   const [isLyricsAvailable, setIsLyricsAvailable] = useState(false);
@@ -93,12 +94,27 @@ export function ChatStep({
     scrollToBottom();
   }, [chatHistory]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedLyrics = window.localStorage.getItem(LYRICS_STORAGE_KEY);
+    const hasConversationStarted = chatHistory.length > 1;
+
+    if (storedLyrics && hasConversationStarted) {
+      setLyricsDraft(storedLyrics);
+      setIsLyricsAvailable(true);
+    } else if (!hasConversationStarted) {
+      window.localStorage.removeItem(LYRICS_STORAGE_KEY);
+      setLyricsDraft("");
+      setIsLyricsAvailable(false);
+    }
+  }, [chatHistory.length]);
+
   // Initialize with a welcome message if chat is empty
   useEffect(() => {
     if (chatHistory.length === 0) {
       const welcomeMessage: ChatMessage = {
         role: "assistant",
-        content: `Hello! I'm here to help you with your project "${formData.title}". ${formData.description ? `I see you want to: ${formData.description}` : "How can I assist you today?"}`,
+        content: `Cześć! Pomogę Ci przygotować projekt "${formData.title}". ${formData.description ? `Z opisu widzę, że chcesz: ${formData.description}` : "Napisz, jak mogę Ci pomóc."}`,
         timestamp: new Date(),
       };
 
@@ -170,6 +186,9 @@ export function ChatStep({
     onSuccess: (data) => {
       setLyricsDraft(data.lyrics ?? lyricsDraft);
       setLyricsStatus({ type: "success", message: "Tekst został zapisany." });
+      if (typeof window !== "undefined" && data.lyrics) {
+        window.localStorage.setItem(LYRICS_STORAGE_KEY, data.lyrics);
+      }
     },
     onError: (error) => {
       setLyricsStatus({ type: "error", message: error.message });
@@ -208,8 +227,14 @@ export function ChatStep({
             setLyricsDraft(data.lyrics);
             setIsLyricsAvailable(true);
             setLyricsStatus(null);
+            if (typeof window !== "undefined") {
+              window.localStorage.setItem(LYRICS_STORAGE_KEY, data.lyrics);
+            }
           } else if (data.lyrics === null) {
             setIsLyricsAvailable(false);
+            if (typeof window !== "undefined") {
+              window.localStorage.removeItem(LYRICS_STORAGE_KEY);
+            }
           }
         },
         onError: (error) => {
@@ -232,8 +257,14 @@ export function ChatStep({
     saveLyricsMutation.mutate(lyricsDraft);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      e.key === "Enter" &&
+      !e.altKey &&
+      !e.shiftKey &&
+      !e.metaKey &&
+      !e.ctrlKey
+    ) {
       e.preventDefault();
       handleSend();
     }
@@ -344,7 +375,7 @@ export function ChatStep({
                 <div className="flex justify-start">
                   <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white/70 card-content">
                     <Spinner color="secondary" size="sm" />
-                    <span className="text-sm">GiftTune.ai pisze...</span>
+                    <span className="text-sm">GiftBeat pisze...</span>
                   </div>
                 </div>
               )}
@@ -358,19 +389,14 @@ export function ChatStep({
               Twoja wiadomość
             </p>
             <div className="flex gap-3">
-              <Input
-                classNames={{
-                  base: "flex-1",
-                  inputWrapper:
-                    "bg-white/5 border border-white/15 rounded-2xl px-3 py-2 shadow-[0_15px_30px_rgba(5,0,20,0.4)] data-[disabled=true]:opacity-60",
-                  input: "text-sm text-white placeholder:text-white/50 pr-2",
-                }}
+              <textarea
+                className="flex-1 resize-none rounded-2xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/50 shadow-[0_15px_30px_rgba(5,0,20,0.4)] focus:outline-none focus:ring-2 focus:ring-pink-500/50 disabled:opacity-60 disabled:cursor-not-allowed"
                 disabled={isLoading}
-                placeholder="Type your message..."
+                placeholder="Napisz wiadomość..."
+                rows={3}
                 value={input}
-                variant="bordered"
                 onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
+                onKeyDown={handleKeyDown}
               />
               <button
                 className="neon-button px-6 py-3 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed"

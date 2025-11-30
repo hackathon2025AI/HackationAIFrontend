@@ -2,6 +2,8 @@
 
 import type { ChatMessage, VideoSettings } from "@/context/project-context";
 
+import { useEffect, useMemo, useState } from "react";
+
 interface SummaryStepProps {
   formData: {
     title: string;
@@ -15,6 +17,9 @@ interface SummaryStepProps {
   isCreating: boolean;
 }
 
+const SAMPLE_MUSIC_URL = encodeURI("/Kiedyś to było.mp3");
+const SAMPLE_VIDEO_URL = "/sample-video.mp4";
+
 export function SummaryStep({
   formData,
   chatHistory,
@@ -23,12 +28,30 @@ export function SummaryStep({
   onCreate,
   isCreating,
 }: SummaryStepProps) {
+  const [musicDownloadUrl, setMusicDownloadUrl] = useState<string | null>(null);
   const slideCount = videoData.libraryItems?.length ?? 0;
   const transitionType = videoData.timelineItems?.[0]?.transition || "brak";
   const hasPreviewReady = Boolean(
     videoData.timelineItems?.length && slideCount,
   );
   const duration = videoData.duration ?? slideCount * 4;
+  const lastMessage = chatHistory.at(-1);
+  const videoDownloadUrl = videoData.exportedVideoUrl;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("gifttune_music_url");
+
+    setMusicDownloadUrl(stored);
+  }, []);
+
+  const resolvedMusicUrl = useMemo(
+    () => musicDownloadUrl || SAMPLE_MUSIC_URL,
+    [musicDownloadUrl],
+  );
+  const resolvedVideoUrl = videoDownloadUrl || SAMPLE_VIDEO_URL;
+  const musicIsMock = !musicDownloadUrl;
+  const videoIsMock = !videoDownloadUrl;
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,98 +65,127 @@ export function SummaryStep({
           </span>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 card-content space-y-2">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
-              Tytuł i typ
-            </p>
-            <p className="text-lg font-semibold text-white">
-              {formData.title || "Brak tytułu"}
-            </p>
-            <p className="text-xs uppercase tracking-[0.35em] text-pink-200/90">
-              {formData.type}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 lg:col-span-2 card-content space-y-2">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
-              Opis
-            </p>
-            <p className="text-sm text-white/70 whitespace-pre-line">
-              {formData.description ||
-                "Brak opisu – wróć do pierwszego kroku, aby go uzupełnić."}
-            </p>
-          </div>
-        </div>
+        <p className="text-xs text-white/60">
+          Projekt: {formData.title || "Brak tytułu"} • {formData.type}
+        </p>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 card-content space-y-4">
-            <div>
+        <div className="grid gap-4">
+          <div className="grid gap-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 card-content space-y-3">
               <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
-                GiftTune Chat
+                Ostatnia wiadomość
               </p>
-              <p className="mt-2 text-2xl font-semibold text-white">
-                {chatHistory.length}
-              </p>
-              <p className="text-xs text-white/60">wiadomości w historii</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">
-                Ostatnia wiadomość:
-                <span className="ml-1 text-white/80">
-                  {chatHistory.at(-1)?.content ||
-                    "brak – rozpocznij rozmowę z AI."}
-                </span>
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 card-content space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
-                  Wideo
+              {lastMessage ? (
+                <>
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                    {lastMessage.role === "assistant" ? "GiftBeat" : "Ty"}
+                  </p>
+                  <p className="text-sm text-white/80 whitespace-pre-line">
+                    {lastMessage.content}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-white/60">
+                  Brak wiadomości — rozpocznij rozmowę w poprzednim kroku.
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-white">
-                  {slideCount} slajdów
-                </p>
-                <p className="text-xs text-white/60">
-                  ~ {duration.toFixed(1)} s • przejście: {transitionType}
-                </p>
+              )}
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/60">
+                Łącznie wiadomości: {chatHistory.length}
               </div>
-              <span
-                className={`rounded-full px-3 py-1 text-xs ${hasPreviewReady ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-400/20 text-amber-200"}`}
-              >
-                {hasPreviewReady ? "Podgląd gotowy" : "Wróć do wideo"}
-              </span>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
-              <p className="text-xs text-white/60">Ustawienia:</p>
-              <ul className="text-sm text-white/80 space-y-1">
-                <li>Rozdzielczość: {videoData.resolution}</li>
-                <li>Klatkaż: {videoData.frameRate} fps</li>
-                <li>Proporcje: {videoData.aspectRatio}</li>
-              </ul>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 card-content flex flex-col justify-between space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
+                      Muzyka
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-white">
+                      {musicIsMock ? "Przykładowy utwór" : "Gotowy utwór"}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs ${musicIsMock ? "bg-sky-500/15 text-sky-200" : "bg-emerald-500/20 text-emerald-300"}`}
+                  >
+                    {musicIsMock ? "Sample" : "Gotowy"}
+                  </span>
+                </div>
+                <p className="text-sm text-white/70 flex-1">
+                  {musicIsMock
+                    ? "Możesz pobrać wygenerowane MP3."
+                    : "Możesz pobrać wygenerowane MP3."}
+                </p>
+                {resolvedMusicUrl ? (
+                  <a
+                    className="inline-flex items-center justify-center rounded-full border border-emerald-400/60 bg-emerald-500/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-50 transition hover:bg-emerald-500/25"
+                    download="giftune-track.mp3"
+                    href={resolvedMusicUrl}
+                  >
+                    Pobierz MP3
+                  </a>
+                ) : (
+                  <button
+                    disabled
+                    className="inline-flex cursor-not-allowed items-center justify-center rounded-full border border-white/20 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/40"
+                    type="button"
+                  >
+                    Brak pliku
+                  </button>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 card-content flex flex-col justify-between space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
+                      Wideo
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-white">
+                      {slideCount} slajdów
+                    </p>
+                    <p className="text-xs text-white/60">
+                      Długość: ~ {duration.toFixed(1)} s
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs ${videoIsMock ? "bg-sky-500/15 text-sky-200" : "bg-emerald-500/20 text-emerald-300"}`}
+                  >
+                    {videoIsMock ? "Sample" : "Wyeksportowane"}
+                  </span>
+                </div>
+                <div className="flex-1" />
+                {resolvedVideoUrl ? (
+                  <a
+                    className="inline-flex items-center justify-center rounded-full border border-sky-400/60 bg-sky-500/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-sky-50 transition hover:bg-sky-500/25"
+                    download="giftune-video.mp4"
+                    href={resolvedVideoUrl}
+                  >
+                    Pobierz wideo
+                  </a>
+                ) : (
+                  <button
+                    disabled
+                    className="inline-flex cursor-not-allowed items-center justify-center rounded-full border border-white/20 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/40"
+                    type="button"
+                  >
+                    Brak eksportu
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex gap-3 justify-end border-t border-white/10 pt-4">
+      <div className="flex justify-end border-t border-white/10 pt-4">
         <button
           className="rounded-full border border-white/20 px-5 py-2 text-sm text-white/80 transition hover:border-white/50"
           disabled={isCreating}
           type="button"
           onClick={onBack}
         >
-          Wstecz
-        </button>
-        <button
-          className="neon-button px-6 py-3 text-[11px]"
-          disabled={!hasPreviewReady || isCreating}
-          type="button"
-          onClick={onCreate}
-        >
-          {isCreating ? "Tworzymy projekt..." : "Create Project"}
+          Wróć
         </button>
       </div>
     </div>

@@ -92,7 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </p>
         <h2 className="text-2xl font-semibold text-white">Project History</h2>
         <p className="text-sm text-white/70">
-          Najważniejsze etapy rozwoju GiftTune.ai
+          Najważniejsze etapy rozwoju GiftBeat
         </p>
       </div>
 

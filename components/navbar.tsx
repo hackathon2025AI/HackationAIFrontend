@@ -11,9 +11,10 @@ import {
 import { Button } from "@heroui/button";
 import { Link } from "@heroui/link";
 import NextLink from "next/link";
+import Image from "next/image";
 
 import { siteConfig } from "@/config/site";
-import { Logo, HistoryIcon } from "@/components/icons";
+import { HistoryIcon } from "@/components/icons";
 
 interface NavbarProps {
   onSidebarToggle?: () => void;
@@ -29,8 +30,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onSidebarToggle }) => {
       <NavbarContent className="w-full gap-6" justify="start">
         <NavbarBrand as="li" className="gap-3 max-w-fit">
           <NextLink className="flex items-center gap-3" href="/">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-2xl text-white shadow-[0_0_25px_rgba(255,75,216,0.4)]">
-              <Logo />
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-2xl text-white shadow-[0_0_25px_rgba(255,75,216,0.4)] overflow-hidden">
+              <Image
+                priority
+                alt="GiftBeat logo"
+                height={44}
+                src="/logov1.png"
+                width={44}
+              />
             </div>
             <div className="flex flex-col leading-tight">
               <span className="text-gradient text-lg font-semibold tracking-wide">

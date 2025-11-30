@@ -75,6 +75,8 @@ interface SongStartResponse {
   lyrics_changed: boolean;
 }
 
+const LYRICS_STORAGE_KEY = "gifttune_lyrics";
+
 const OptionGroup = ({
   index,
   title,
@@ -124,6 +126,15 @@ const OptionGroup = ({
       )}
   </div>
 );
+
+const clearStoredLyrics = () => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(LYRICS_STORAGE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+};
 
 export default function Home() {
   const router = useRouter();
@@ -182,17 +193,13 @@ export default function Home() {
 
       return responseBody;
     },
+    onMutate: () => {
+      clearStoredLyrics();
+    },
     onSuccess: (responseBody, variables) => {
       setSubmissionError(null);
       const summaryLines = [
-        "🎁 Rozpoczęto tworzenie utworu z następującymi parametrami:",
-        `• Title: ${variables.title}`,
-        `• Genre: ${variables.genre}`,
-        `• Mood: ${variables.mood}`,
-        `• Tempo: ${variables.tempo}`,
-        `• Perspective: ${variables.perspective}`,
-        `• Language: ${variables.language}`,
-        `• Notes: ${variables.additional_notes}`,
+        "🎁 Rozpoczęto tworzenie utworu",
       ];
 
       const userMessage: ChatMessage = {
@@ -226,6 +233,7 @@ export default function Home() {
         } catch {
           // ignore storage errors
         }
+        clearStoredLyrics();
       }
 
       router.push("/project/create?step=chat");
@@ -247,16 +255,16 @@ export default function Home() {
     const notes: string[] = [];
 
     if (recipientName) {
-      notes.push(`Recipient: ${recipientName}`);
+      notes.push(`Obdarowana osoba: ${recipientName}`);
     }
     if (occasion === "other" && occasionCustomDetail) {
-      notes.push(`Occasion detail: ${occasionCustomDetail}`);
+      notes.push(`Szczegóły okazji: ${occasionCustomDetail}`);
     }
     if (relation === "custom" && relationCustomDetail) {
-      notes.push(`Relation detail: ${relationCustomDetail}`);
+      notes.push(`Szczegóły relacji: ${relationCustomDetail}`);
     }
     if (vibe === "custom" && vibeCustomDetail) {
-      notes.push(`Preferred vibe detail: ${vibeCustomDetail}`);
+      notes.push(`Szczegóły klimatu utworu: ${vibeCustomDetail}`);
     }
 
     return {
@@ -264,7 +272,7 @@ export default function Home() {
       genre: normalizedVibe,
       mood: normalizedOccasion,
       tempo: "",
-      language: "en",
+      language: "pl",
       perspective: normalizedRelation,
       additional_notes: "",
     };
@@ -280,7 +288,7 @@ export default function Home() {
           <div className="flex flex-col gap-6 relative z-10">
             <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.45em] text-white/60">
               <span className="rounded-full border border-white/30 px-4 py-1 text-white/80">
-                GiftTune
+                GiftBeat
               </span>
               <span className="rounded-full border border-pink-400/60 px-3 py-1 text-pink-200">
                 AI
@@ -293,7 +301,7 @@ export default function Home() {
                 Stwórz Hit dla Bliskiej Osoby
               </h1>
               <p className="text-lg text-white/75 max-w-2xl">
-                Wybierz okazję, dodaj imię i pozwól GiftTune.ai zaskoczyć Twoich
+                Wybierz okazję, dodaj imię i pozwól GiftBeat zaskoczyć Twoich
                 najbliższych personalizowaną piosenką.
               </p>
             </div>

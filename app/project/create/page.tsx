@@ -59,7 +59,7 @@ function CreateProjectContent() {
 
   const stepLabels = {
     form: "Podstawowe informacje",
-    chat: "GiftTune Chat",
+    chat: "GiftBeat Chat",
     music: "Generowanie muzyki",
     video: "Tworzenie wideo",
     summary: "Podsumowanie",
@@ -68,8 +68,8 @@ function CreateProjectContent() {
   const stepProgressMap: Record<Step, number> = {
     form: 8,
     chat: 30,
-    music: 58,
-    video: 82,
+    music: 51,
+    video: 71,
     summary: 100,
   };
   const progress = stepProgressMap[currentStep];
@@ -183,7 +183,7 @@ function CreateProjectContent() {
           <div className="relative z-10 flex flex-col gap-8">
             <div className="space-y-3 pt-18">
               <p className="text-[11px] uppercase tracking-[0.45em] text-white/80 font-medium relative z-20">
-                GiftTune • Kreator projektu
+                GiftBeat • Kreator projektu
               </p>
               <h1 className="text-3xl sm:text-4xl font-semibold text-white relative z-20">
                 Tworzymy prezent w pięciu krokach
@@ -333,7 +333,7 @@ function CreateProjectContent() {
                         disabled={!formData.title.trim()}
                         type="submit"
                       >
-                        Dalej: GiftTune Chat
+                        Dalej: GiftBeat Chat
                       </Button>
                     </div>
                   </form>
@@ -351,8 +351,6 @@ function CreateProjectContent() {
 
                 {currentStep === "music" && (
                   <MusicGenerationStep
-                    chatHistory={chatHistory}
-                    formData={formData}
                     onBack={handleBack}
                     onComplete={handleMusicComplete}
                   />

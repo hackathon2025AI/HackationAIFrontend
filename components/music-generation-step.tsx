@@ -1,8 +1,6 @@
 "use client";
 
-import type { ChatMessage } from "@/context/project-context";
-
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { useMutation } from "@tanstack/react-query";
@@ -10,22 +8,17 @@ import { useMutation } from "@tanstack/react-query";
 import { MicrophoneRecorder } from "./microphone-recorder";
 
 interface MusicGenerationStepProps {
-  formData: {
-    title: string;
-    description: string;
-    type: string;
-  };
-  chatHistory: ChatMessage[];
   onComplete: () => void;
   onBack: () => void;
 }
 
 export function MusicGenerationStep({
-  formData,
-  chatHistory,
   onComplete,
   onBack,
 }: MusicGenerationStepProps) {
+  const MOCK_AUDIO_PATH = encodeURI("/Kiedyś to było.mp3");
+  const MOCK_GENERATION_DELAY_MS = 3500;
+
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(
     null,
   );
@@ -79,18 +72,24 @@ export function MusicGenerationStep({
     },
   });
 
-  const handleGenerate = () => {
+  const handleGenerate = useCallback(async () => {
     setErrorMessage(null);
     setIsGeneratingMusic(true);
 
-    // Mock music generation by resolving after a short delay
-    setTimeout(() => {
-      setGeneratedAudioUrl(
-        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    try {
+      await new Promise((resolve) =>
+        setTimeout(resolve, MOCK_GENERATION_DELAY_MS),
       );
+      setGeneratedAudioUrl(MOCK_AUDIO_PATH);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("gifttune_music_url", MOCK_AUDIO_PATH);
+      }
+    } catch {
+      setErrorMessage("Nie udało się wygenerować muzyki. Spróbuj ponownie.");
+    } finally {
       setIsGeneratingMusic(false);
-    }, 1500);
-  };
+    }
+  }, []);
 
   const handleRecordingReady = async (payload: {
     blob: Blob;
@@ -235,25 +234,25 @@ export function MusicGenerationStep({
           </div>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 card-content">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
-              Tytuł projektu
-            </p>
-            <p className="mt-2 text-lg font-semibold text-white">
-              {formData.title || "Brak tytułu"}
-            </p>
+        {hasGenerated && generatedAudioUrl && (
+          <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/5 p-4 flex flex-col gap-3 card-content">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.35em] text-emerald-200">
+                Gotowa ścieżka
+              </p>
+              <p className="text-white/70 text-sm">
+                Możesz pobrać wygenerowany utwór jako plik MP3.
+              </p>
+            </div>
+            <a
+              className="inline-flex items-center justify-center rounded-full border border-emerald-400/60 bg-emerald-500/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-100 transition hover:bg-emerald-500/25"
+              download="giftune-mock-track.mp3"
+              href={generatedAudioUrl}
+            >
+              Pobierz MP3
+            </a>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 card-content">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
-              Chat
-            </p>
-            <p className="mt-2 text-2xl font-semibold text-white">
-              {chatHistory.length}
-            </p>
-            <p className="text-xs text-white/60">wiadomości wymienione</p>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Navigation */}

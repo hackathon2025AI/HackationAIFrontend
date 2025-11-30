@@ -15,7 +15,12 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      {
+        url: "/logov1.png",
+        type: "image/png",
+      },
+    ],
   },
 };
 
